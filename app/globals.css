@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #FFFFFF;
+  --surface: #FFFFFF;
+  --ink: #111111;
+  --ink-2: #333333;
+  --muted: #6B6B6B;
+  --subtle: #A0A0A0;
+  --line: #EBEBEB;
+  --line-2: #F4F4F4;
+  --accent: #EA6722;
+  --accent-ink: #FFFFFF;
+  --accent-soft: color-mix(in oklch, var(--accent) 12%, white);
+  --accent-line: color-mix(in oklch, var(--accent) 30%, white);
+  --warn: oklch(0.68 0.18 35);
+  --ok: oklch(0.64 0.13 155);
+  --radius: 12px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-pop: 0 1px 2px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06);
+  --font: var(--font-outfit), -apple-system, system-ui, sans-serif;
+  --mono: var(--font-outfit), ui-monospace, monospace;
+  --display: var(--font-gebuk), Impact, Haettenschweiler, sans-serif;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  font-family: var(--font);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+button { font-family: inherit; }
+input { font-family: inherit; }
+
+.app-scroll::-webkit-scrollbar { width: 0; }
+.app-scroll { scrollbar-width: none; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+@keyframes ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--accent) 40%, transparent); }
+  100% { box-shadow: 0 0 0 18px transparent; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ringPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+@keyframes ringIdle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
