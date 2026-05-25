@@ -17,6 +17,23 @@ type SeanceRow = {
   exos: ExoRow[] | null
 }
 
+type Period = '7d' | '30d' | '90d' | 'all'
+const VALID_PERIODS: Period[] = ['7d', '30d', '90d', 'all']
+const PERIOD_DAYS: Record<Exclude<Period, 'all'>, number> = {
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+}
+const TYPE_LABEL: Record<string, string> = {
+  push: 'Push',
+  pull: 'Pull',
+  legs: 'Jambes',
+  full: 'Full body',
+  upper: 'Upper',
+  core: 'Abdos',
+}
+const TYPE_ORDER = ['push', 'pull', 'legs', 'full', 'upper', 'core']
+
 function startOfWeekMonday(d: Date): Date {
   const x = new Date(d)
   x.setHours(0, 0, 0, 0)
@@ -29,7 +46,15 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-export async function GET() {
+function sumSeanceVolume(s: SeanceRow): number {
+  let v = 0
+  for (const e of s.exos ?? []) {
+    for (const sr of e.series ?? []) v += sr.poids * sr.reps
+  }
+  return v
+}
+
+export async function GET(req: Request) {
   const { userId, getToken } = await auth()
   if (!userId) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -39,27 +64,250 @@ export async function GET() {
     return NextResponse.json({ error: 'Token Supabase indisponible' }, { status: 401 })
   }
 
+  const url = new URL(req.url)
+  const rawPeriod = url.searchParams.get('period') ?? '7d'
+  const period: Period = (VALID_PERIODS as string[]).includes(rawPeriod) ? (rawPeriod as Period) : '7d'
+
   const supabase = createSupabaseServer(token)
 
   const now = new Date()
+  now.setHours(0, 0, 0, 0)
   const thisWeekStart = startOfWeekMonday(now)
-  const fourWeeksWindow = new Date(thisWeekStart)
-  fourWeeksWindow.setDate(fourWeeksWindow.getDate() - 21)
 
-  const { data: seances, error: sErr } = (await supabase
+  let periodStart: Date | null = null
+  let prevPeriodStart: Date | null = null
+  let prevPeriodEnd: Date | null = null
+  if (period !== 'all') {
+    const days = PERIOD_DAYS[period]
+    periodStart = new Date(now)
+    periodStart.setDate(periodStart.getDate() - days + 1)
+    prevPeriodStart = new Date(periodStart)
+    prevPeriodStart.setDate(prevPeriodStart.getDate() - days)
+    prevPeriodEnd = new Date(periodStart)
+    prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1)
+  }
+
+  // 12-week window for sparkline + legacy fourWeeks
+  const twelveWeeksMonday = new Date(thisWeekStart)
+  twelveWeeksMonday.setDate(twelveWeeksMonday.getDate() - 11 * 7)
+
+  // Nested fetch window = the widest of (period+previous), 12 weeks
+  let fetchStart: Date | null
+  if (period === 'all') {
+    fetchStart = null
+  } else {
+    fetchStart = prevPeriodStart! < twelveWeeksMonday ? prevPeriodStart! : twelveWeeksMonday
+  }
+
+  let nestedQuery = supabase
     .from('seances')
     .select('id, type, date, exos(id, nom, series(id, poids, reps, rir, degressive))')
-    .gte('date', isoDate(fourWeeksWindow))
-    .order('date', { ascending: false })) as unknown as {
+    .order('date', { ascending: false })
+  if (fetchStart) {
+    nestedQuery = nestedQuery.gte('date', isoDate(fetchStart))
+  }
+
+  const { data: seances, error: sErr } = (await nestedQuery) as unknown as {
     data: SeanceRow[] | null
     error: { message: string } | null
   }
-
   if (sErr) {
     return NextResponse.json({ error: sErr.message }, { status: 500 })
   }
-
   const list = seances ?? []
+
+  // Light query for blindSpots (all-time, just type+date)
+  const { data: allLight } = (await supabase
+    .from('seances')
+    .select('type, date')
+    .order('date', { ascending: false })) as unknown as {
+    data: { type: string; date: string }[] | null
+  }
+  const lastDateByType = new Map<string, string>()
+  for (const s of allLight ?? []) {
+    if (!lastDateByType.has(s.type)) lastDateByType.set(s.type, s.date)
+  }
+
+  // PRs all-time with date (join exos → seances)
+  type PRRow = {
+    poids: number
+    reps: number
+    exos: { nom: string; seances: { date: string } | null } | null
+  }
+  const { data: prRows } = (await supabase
+    .from('series')
+    .select('poids, reps, exos!inner(nom, seances!inner(date))')
+    .order('poids', { ascending: false })
+    .limit(500)) as unknown as { data: PRRow[] | null }
+
+  const inRange = (d: string, start: Date | null, end: Date | null) => {
+    const dt = new Date(d + 'T00:00:00')
+    if (start && dt < start) return false
+    if (end && dt > end) return false
+    return true
+  }
+
+  const periodList = period === 'all' ? list : list.filter((s) => inRange(s.date, periodStart, now))
+  const prevList =
+    period === 'all'
+      ? []
+      : list.filter((s) => inRange(s.date, prevPeriodStart, prevPeriodEnd))
+
+  // ----- HERO (period) -----
+  let pVolume = 0
+  let pPoidsSum = 0
+  let pPoidsCount = 0
+  let pSeries = 0
+  for (const s of periodList) {
+    for (const e of s.exos ?? []) {
+      for (const sr of e.series ?? []) {
+        pSeries++
+        pVolume += sr.poids * sr.reps
+        pPoidsSum += sr.poids
+        pPoidsCount++
+      }
+    }
+  }
+  let prevVolume = 0
+  for (const s of prevList) prevVolume += sumSeanceVolume(s)
+
+  // 12-week sparkline (oldest → newest)
+  const sparkline12w: number[] = []
+  for (let i = 0; i < 12; i++) {
+    const wkStart = new Date(twelveWeeksMonday)
+    wkStart.setDate(wkStart.getDate() + i * 7)
+    const wkEnd = new Date(wkStart)
+    wkEnd.setDate(wkEnd.getDate() + 6)
+    let v = 0
+    for (const s of list) {
+      const dt = new Date(s.date + 'T00:00:00')
+      if (dt >= wkStart && dt <= wkEnd) v += sumSeanceVolume(s)
+    }
+    sparkline12w.push(v)
+  }
+
+  // ----- DISTRIBUTION (period) -----
+  const distMap = new Map<string, { seances: number; volume: number }>()
+  for (const s of periodList) {
+    const cur = distMap.get(s.type) ?? { seances: 0, volume: 0 }
+    cur.seances++
+    cur.volume += sumSeanceVolume(s)
+    distMap.set(s.type, cur)
+  }
+  const distTotalVolume = Array.from(distMap.values()).reduce((a, b) => a + b.volume, 0) || 1
+  const distribution = TYPE_ORDER.filter((t) => distMap.has(t))
+    .map((t) => {
+      const x = distMap.get(t)!
+      return {
+        type: t,
+        label: TYPE_LABEL[t] ?? t,
+        seances: x.seances,
+        volume: x.volume,
+        percent: Math.round((x.volume / distTotalVolume) * 100),
+      }
+    })
+    .sort((a, b) => b.volume - a.volume)
+
+  // ----- TOP EXOS (period) -----
+  const exoVol = new Map<string, number>()
+  for (const s of periodList) {
+    for (const e of s.exos ?? []) {
+      let v = 0
+      for (const sr of e.series ?? []) v += sr.poids * sr.reps
+      exoVol.set(e.nom, (exoVol.get(e.nom) ?? 0) + v)
+    }
+  }
+  const exoVolPrev = new Map<string, number>()
+  for (const s of prevList) {
+    for (const e of s.exos ?? []) {
+      let v = 0
+      for (const sr of e.series ?? []) v += sr.poids * sr.reps
+      exoVolPrev.set(e.nom, (exoVolPrev.get(e.nom) ?? 0) + v)
+    }
+  }
+
+  // Sparkline buckets per top exo over the period (8 buckets)
+  const BUCKETS = 8
+  let bucketStart: Date
+  let bucketSizeMs: number
+  if (period === 'all' || !periodStart) {
+    bucketStart = new Date(twelveWeeksMonday)
+    bucketSizeMs = (12 * 7 * 86400000) / BUCKETS
+  } else {
+    bucketStart = new Date(periodStart)
+    const totalMs = now.getTime() + 86400000 - bucketStart.getTime()
+    bucketSizeMs = totalMs / BUCKETS
+  }
+  const bucketIndex = (d: string) => {
+    const t = new Date(d + 'T00:00:00').getTime()
+    return Math.max(0, Math.min(BUCKETS - 1, Math.floor((t - bucketStart.getTime()) / bucketSizeMs)))
+  }
+  const exoSparks = new Map<string, number[]>()
+  const periodSource = period === 'all' ? list : periodList
+  for (const s of periodSource) {
+    const bi = bucketIndex(s.date)
+    for (const e of s.exos ?? []) {
+      let v = 0
+      for (const sr of e.series ?? []) v += sr.poids * sr.reps
+      if (v === 0) continue
+      const arr = exoSparks.get(e.nom) ?? new Array(BUCKETS).fill(0)
+      arr[bi] += v
+      exoSparks.set(e.nom, arr)
+    }
+  }
+
+  const topExos = Array.from(exoVol.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([nom, volume]) => {
+      const volumePrev = exoVolPrev.get(nom) ?? 0
+      let trendPct: number | null = null
+      if (period !== 'all' && volumePrev > 0) {
+        trendPct = Math.round(((volume - volumePrev) / volumePrev) * 100)
+      }
+      return {
+        nom,
+        volume,
+        volumePrev,
+        trendPct,
+        sparkline: exoSparks.get(nom) ?? new Array(BUCKETS).fill(0),
+      }
+    })
+
+  // ----- BLIND SPOTS -----
+  const blindSpots = TYPE_ORDER.map((t) => {
+    const lastDate = lastDateByType.get(t)
+    let daysSince: number | null = null
+    if (lastDate) {
+      const dt = new Date(lastDate + 'T00:00:00')
+      daysSince = Math.max(0, Math.floor((now.getTime() - dt.getTime()) / 86400000))
+    }
+    return {
+      type: t,
+      label: TYPE_LABEL[t] ?? t,
+      daysSince,
+    }
+  })
+
+  // ----- RECENT PRS (with date) -----
+  const prByExo = new Map<string, { poids: number; reps: number; date: string }>()
+  for (const r of prRows ?? []) {
+    const nom = r.exos?.nom
+    const dt = r.exos?.seances?.date
+    if (!nom || !dt) continue
+    const cur = prByExo.get(nom)
+    if (!cur || cur.poids < r.poids) {
+      prByExo.set(nom, { poids: r.poids, reps: r.reps, date: dt })
+    }
+  }
+  const recentPrs = Array.from(prByExo.entries())
+    .sort((a, b) => (a[1].date < b[1].date ? 1 : -1))
+    .slice(0, 5)
+    .map(([nom, x]) => ({ nom, poids: x.poids, reps: x.reps, date: x.date }))
+
+  // ===========================================================
+  // LEGACY FIELDS (IdleScreen compatibility) — computed on list
+  // ===========================================================
 
   const weeklyVolumes = new Map<string, number>()
   let totalSeanceCount = 0
@@ -67,7 +315,6 @@ export async function GET() {
   let totalVolume = 0
   let totalPoidsSum = 0
   let totalPoidsCount = 0
-
   for (const s of list) {
     totalSeanceCount++
     const seanceDate = new Date(s.date + 'T00:00:00')
@@ -85,12 +332,12 @@ export async function GET() {
     totalVolume += weekVol
   }
 
-  const chart: Array<{ label: string; volume: number; current: boolean }> = []
+  const legacyChart: Array<{ label: string; volume: number; current: boolean }> = []
   for (let i = 3; i >= 0; i--) {
     const wk = new Date(thisWeekStart)
     wk.setDate(wk.getDate() - i * 7)
     const key = isoDate(wk)
-    chart.push({
+    legacyChart.push({
       label: i === 0 ? 'Cette sem.' : `S-${i}`,
       volume: weeklyVolumes.get(key) ?? 0,
       current: i === 0,
@@ -116,6 +363,7 @@ export async function GET() {
 
   const lastSeance = list[0]
   let lastSeanceData: {
+    id: string
     type: string
     date: string
     exos: { nom: string; topSet: { poids: number; reps: number } | null }[]
@@ -137,6 +385,7 @@ export async function GET() {
       0,
     )
     lastSeanceData = {
+      id: lastSeance.id,
       type: lastSeance.type,
       date: lastSeance.date,
       exos: exoSummaries,
@@ -144,32 +393,13 @@ export async function GET() {
     }
   }
 
-  type PRJoinRow = {
-    poids: number
-    reps: number
-    exos: { nom: string } | null
-  }
-  const { data: allSeries } = (await supabase
-    .from('series')
-    .select('poids, reps, exos(nom)')
-    .order('poids', { ascending: false })
-    .limit(500)) as unknown as { data: PRJoinRow[] | null }
-
-  const prMap = new Map<string, { poids: number; reps: number }>()
-  for (const s of allSeries ?? []) {
-    const nom = s.exos?.nom
-    if (!nom) continue
-    const cur = prMap.get(nom)
-    if (!cur || cur.poids < s.poids) {
-      prMap.set(nom, { poids: s.poids, reps: s.reps })
-    }
-  }
-  const prs = Array.from(prMap.entries())
+  const legacyPrs = Array.from(prByExo.entries())
     .sort((a, b) => b[1].poids - a[1].poids)
     .slice(0, 4)
-    .map(([nom, { poids, reps }]) => ({ nom, poids, reps }))
+    .map(([nom, x]) => ({ nom, poids: x.poids, reps: x.reps }))
 
   return NextResponse.json({
+    // Legacy (IdleScreen)
     week: {
       volume: thisWeekVolume,
       volumePrev: prevWeekVolume,
@@ -182,8 +412,23 @@ export async function GET() {
       seances: totalSeanceCount,
       series: totalSeriesCount,
       avgLoad: totalPoidsCount > 0 ? Math.round(totalPoidsSum / totalPoidsCount) : 0,
-      chart,
+      chart: legacyChart,
     },
-    prs,
+    prs: legacyPrs,
+
+    // New (StatsScreen)
+    period,
+    hero: {
+      volume: pVolume,
+      volumePrev: period === 'all' ? null : prevVolume,
+      seances: periodList.length,
+      series: pSeries,
+      avgLoad: pPoidsCount > 0 ? Math.round(pPoidsSum / pPoidsCount) : 0,
+      sparkline12w,
+    },
+    distribution,
+    topExos,
+    blindSpots,
+    recentPrs,
   })
 }

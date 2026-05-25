@@ -3,7 +3,39 @@
 import { useEffect, useState } from 'react'
 import { useToast } from '../../_components/Toast'
 
+export type Period = '7d' | '30d' | '90d' | 'all'
+
+export type DistributionItem = {
+  type: string
+  label: string
+  seances: number
+  volume: number
+  percent: number
+}
+
+export type TopExo = {
+  nom: string
+  volume: number
+  volumePrev: number
+  trendPct: number | null
+  sparkline: number[]
+}
+
+export type BlindSpot = {
+  type: string
+  label: string
+  daysSince: number | null
+}
+
+export type RecentPR = {
+  nom: string
+  poids: number
+  reps: number
+  date: string
+}
+
 export type DashboardData = {
+  // Legacy (IdleScreen)
   week: {
     volume: number
     volumePrev: number
@@ -11,6 +43,7 @@ export type DashboardData = {
     series: number
   }
   lastSeance: {
+    id: string
     type: string
     date: string
     exos: { nom: string; topSet: { poids: number; reps: number } | null }[]
@@ -24,9 +57,24 @@ export type DashboardData = {
     chart: { label: string; volume: number; current: boolean }[]
   }
   prs: { nom: string; poids: number; reps: number }[]
+
+  // New (StatsScreen)
+  period: Period
+  hero: {
+    volume: number
+    volumePrev: number | null
+    seances: number
+    series: number
+    avgLoad: number
+    sparkline12w: number[]
+  }
+  distribution: DistributionItem[]
+  topExos: TopExo[]
+  blindSpots: BlindSpot[]
+  recentPrs: RecentPR[]
 }
 
-export function useDashboard() {
+export function useDashboard(period?: Period) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -35,8 +83,10 @@ export function useDashboard() {
   useEffect(() => {
     let cancelled = false
     const run = async () => {
+      setLoading(true)
       try {
-        const res = await fetch('/api/dashboard')
+        const qs = period ? `?period=${encodeURIComponent(period)}` : ''
+        const res = await fetch(`/api/dashboard${qs}`)
         if (cancelled) return
         if (!res.ok) {
           const e = await res.json().catch(() => ({}))
@@ -61,7 +111,7 @@ export function useDashboard() {
     return () => {
       cancelled = true
     }
-  }, [toast])
+  }, [toast, period])
 
   return { data, loading, error }
 }
