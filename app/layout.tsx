@@ -83,8 +83,7 @@ export default function RootLayout({
           <FloatingUserButton />
           {children}
         </ClerkProvider>
-        </ToastProvider
-         
+        </ToastProvider>
         <SpeedInsights />
         <Analytics />
       </body>
