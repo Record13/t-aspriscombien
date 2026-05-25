@@ -1,6 +1,6 @@
 'use client'
 
-import type { SessionState, WorkoutStep } from '../_lib/types'
+import type { NavFn, SessionState } from '../_lib/types'
 import { daysAgo, formatSeanceDate, greetingFor, percentChange } from '../_lib/helpers'
 import { WORKOUT_TYPES } from '../_lib/constants'
 import { useDashboard } from '../_lib/useDashboard'
@@ -9,7 +9,7 @@ import { ArrowUpRight, ChevronRight, Dumbbell, Spark, TrendUp } from '../_compon
 
 type Props = {
   session: SessionState
-  nav: (s: WorkoutStep) => void
+  nav: NavFn
 }
 
 export function IdleScreen({ nav }: Props) {
@@ -201,11 +201,33 @@ export function IdleScreen({ nav }: Props) {
             >
               Dernière séance
             </span>
-            <span style={{ fontSize: 11, color: 'var(--subtle)', fontFamily: 'var(--mono)' }}>
-              {daysAgo(last.date)}
-            </span>
+            <button
+              onClick={() => nav('history')}
+              style={{
+                appearance: 'none',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--ink-2)',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'var(--font)',
+                padding: '4px 6px',
+                margin: '-4px -6px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              Tout l&apos;historique
+              <ChevronRight size={11} stroke={2.4} />
+            </button>
           </div>
-          <Card interactive style={{ padding: 16 }}>
+          <Card
+            interactive
+            onClick={() => nav('session_detail', { seanceId: last.id })}
+            style={{ padding: 16 }}
+          >
             <div
               style={{
                 display: 'flex',
@@ -280,8 +302,7 @@ export function IdleScreen({ nav }: Props) {
               }}
             >
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                {last.seriesCount} série{last.seriesCount > 1 ? 's' : ''} enregistrée
-                {last.seriesCount > 1 ? 's' : ''}
+                {last.seriesCount} série{last.seriesCount > 1 ? 's' : ''} · {daysAgo(last.date)}
               </span>
               <ChevronRight size={14} color="var(--subtle)" />
             </div>
@@ -306,6 +327,24 @@ export function IdleScreen({ nav }: Props) {
                 Lance ta première séance.
               </span>
             </div>
+            <button
+              onClick={() => nav('history')}
+              style={{
+                marginTop: 14,
+                width: '100%',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--ink-2)',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'var(--font)',
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+              }}
+            >
+              ou ajouter une séance manuellement
+            </button>
           </Card>
         </div>
       )}

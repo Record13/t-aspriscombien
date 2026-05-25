@@ -5,6 +5,15 @@ export type WorkoutStep =
   | 'logging'
   | 'stats'
   | 'summary'
+  | 'history'
+  | 'session_detail'
+  | 'manual_entry'
+
+export type NavContext = {
+  seanceId?: string | null
+}
+
+export type NavFn = (step: WorkoutStep, ctx?: NavContext) => void
 
 export type Serie = {
   tempId: string

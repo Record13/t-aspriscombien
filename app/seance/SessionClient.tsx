@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { SessionState, WorkoutStep } from './_lib/types'
+import type { NavContext, SessionState, WorkoutStep } from './_lib/types'
 import { StepSwitcher } from './_components/StepSwitcher'
 import { IdleScreen } from './_screens/IdleScreen'
 import { ConfigScreen } from './_screens/ConfigScreen'
@@ -9,6 +9,9 @@ import { ExerciseSelectScreen } from './_screens/ExerciseSelectScreen'
 import { LoggingScreen } from './_screens/LoggingScreen'
 import { SummaryScreen } from './_screens/SummaryScreen'
 import { StatsScreen } from './_screens/StatsScreen'
+import { HistoryScreen } from './_screens/HistoryScreen'
+import { SessionDetailScreen } from './_screens/SessionDetailScreen'
+import { ManualEntryScreen } from './_screens/ManualEntryScreen'
 
 const DEFAULT_REST = 90
 
@@ -31,16 +34,20 @@ function initialSession(): SessionState {
 export default function SessionClient() {
   const [step, setStep] = useState<WorkoutStep>('idle')
   const [session, setSession] = useState<SessionState>(initialSession)
+  const [selectedSeanceId, setSelectedSeanceId] = useState<string | null>(null)
 
   const resetSession = () => setSession(initialSession())
-  const nav = (s: WorkoutStep) => setStep(s)
+  const nav = (s: WorkoutStep, ctx?: NavContext) => {
+    if (ctx && 'seanceId' in ctx) setSelectedSeanceId(ctx.seanceId ?? null)
+    setStep(s)
+  }
 
   return (
     <div
       style={{
         maxWidth: 480,
         margin: '0 auto',
-        minHeight: 'calc(100dvh - 60px)',
+        minHeight: '100dvh',
         background: 'var(--bg)',
         position: 'relative',
       }}
@@ -65,6 +72,13 @@ export default function SessionClient() {
           />
         )}
         {step === 'stats' && <StatsScreen session={session} nav={nav} />}
+        {step === 'history' && <HistoryScreen nav={nav} />}
+        {step === 'session_detail' && (
+          <SessionDetailScreen seanceId={selectedSeanceId} nav={nav} />
+        )}
+        {step === 'manual_entry' && (
+          <ManualEntryScreen seanceId={selectedSeanceId} nav={nav} />
+        )}
       </StepSwitcher>
     </div>
   )
