@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useToast } from '../../_components/Toast'
 
 export type DashboardData = {
   week: {
@@ -29,6 +30,7 @@ export function useDashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   useEffect(() => {
     let cancelled = false
@@ -38,13 +40,19 @@ export function useDashboard() {
         if (cancelled) return
         if (!res.ok) {
           const e = await res.json().catch(() => ({}))
-          setError(e.error || `Erreur ${res.status}`)
+          const msg = e.error || `Erreur ${res.status}`
+          setError(msg)
+          toast.error(`Tableau de bord : ${msg}`)
         } else {
           const d = (await res.json()) as DashboardData
           setData(d)
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Erreur réseau')
+        if (!cancelled) {
+          const msg = e instanceof Error ? e.message : 'Erreur réseau'
+          setError(msg)
+          toast.warn(`Hors ligne ? ${msg}`)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -53,7 +61,7 @@ export function useDashboard() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [toast])
 
   return { data, loading, error }
 }

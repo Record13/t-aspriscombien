@@ -1,27 +1,40 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-inter), -apple-system, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: var(--font-space-grotesk), -apple-system, sans-serif;
+  --default-font-family: var(--font-inter), -apple-system, system-ui, sans-serif;
+  --default-mono-font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
 :root {
-  --bg: #FFFFFF;
-  --surface: #FFFFFF;
-  --ink: #111111;
-  --ink-2: #333333;
-  --muted: #6B6B6B;
-  --subtle: #A0A0A0;
-  --line: #EBEBEB;
-  --line-2: #F4F4F4;
-  --accent: #EA6722;
-  --accent-ink: #FFFFFF;
-  --accent-soft: color-mix(in oklch, var(--accent) 12%, white);
-  --accent-line: color-mix(in oklch, var(--accent) 30%, white);
-  --warn: oklch(0.68 0.18 35);
-  --ok: oklch(0.64 0.13 155);
-  --radius: 12px;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
-  --shadow-pop: 0 1px 2px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06);
-  --font: var(--font-outfit), -apple-system, system-ui, sans-serif;
-  --mono: var(--font-outfit), ui-monospace, monospace;
-  --display: var(--font-gebuk), Impact, Haettenschweiler, sans-serif;
+  --bg: #09090B;
+  --surface: #18181B;
+  --surface-2: #27272A;
+  --ink: #FAFAFA;
+  --ink-2: #E4E4E7;
+  --muted: #A1A1AA;
+  --subtle: #71717A;
+  --line: #27272A;
+  --line-2: #1F1F22;
+  --accent: #BEF264;
+  --accent-strong: #84CC16;
+  --accent-ink: #0A0A0B;
+  --accent-soft: color-mix(in oklch, var(--accent) 14%, var(--bg));
+  --accent-line: color-mix(in oklch, var(--accent) 38%, var(--bg));
+  --warn: #FBBF24;
+  --ok: #4ADE80;
+  --danger: #F87171;
+  --radius: 14px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.28);
+  --shadow-pop: 0 10px 30px -10px rgba(190,242,100,0.18), 0 8px 24px rgba(0,0,0,0.40);
+  --font: var(--font-inter), -apple-system, system-ui, sans-serif;
+  --mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --display: var(--font-space-grotesk), -apple-system, sans-serif;
+
+  color-scheme: dark;
 }
 
 html, body {
@@ -31,11 +44,20 @@ html, body {
   font-family: var(--font);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * { box-sizing: border-box; }
-button { font-family: inherit; }
-input { font-family: inherit; }
+button, input, select, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+input::placeholder { color: var(--subtle); }
+
+::selection {
+  background: color-mix(in oklch, var(--accent) 35%, transparent);
+  color: var(--ink);
+}
 
 .app-scroll::-webkit-scrollbar { width: 0; }
 .app-scroll { scrollbar-width: none; }

@@ -3,8 +3,9 @@
 import { Dispatch, SetStateAction, useState } from 'react'
 import type { Serie, SessionState, WorkoutStep } from '../_lib/types'
 import { WORKOUT_TYPES } from '../_lib/constants'
+import { formatSessionAsText } from '../_lib/helpers'
 import { Button, Card, IconButton, TopBar } from '../_components/primitives'
-import { Check, ChevronLeft, Minus, Plus, X } from '../_components/icons'
+import { Check, ChevronLeft, Copy, Minus, Plus, X } from '../_components/icons'
 
 type Props = {
   session: SessionState
@@ -65,6 +66,31 @@ export function SummaryScreen({ session, setSession, nav, resetSession }: Props)
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState<string>('')
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+
+  const handleCopy = async () => {
+    const text = formatSessionAsText({ ...session, exos: nonEmptyExos })
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      setCopyStatus('copied')
+      window.setTimeout(() => setCopyStatus('idle'), 2200)
+    } catch {
+      setCopyStatus('error')
+      window.setTimeout(() => setCopyStatus('idle'), 2200)
+    }
+  }
 
   const handleValidate = async () => {
     setSaveStatus('saving')
@@ -363,7 +389,7 @@ export function SummaryScreen({ session, setSession, nav, resetSession }: Props)
               style={{
                 padding: '14px 16px',
                 borderRadius: 12,
-                background: 'color-mix(in oklch, var(--ok) 14%, white)',
+                background: 'color-mix(in oklch, var(--ok) 18%, var(--surface))',
                 color: 'var(--ok)',
                 display: 'flex',
                 alignItems: 'center',
@@ -376,6 +402,23 @@ export function SummaryScreen({ session, setSession, nav, resetSession }: Props)
               <Check size={16} stroke={2.4} />
               <span>Séance enregistrée</span>
             </div>
+            <Button
+              variant="secondary"
+              onClick={handleCopy}
+              icon={
+                copyStatus === 'copied' ? (
+                  <Check size={16} color="var(--accent)" />
+                ) : (
+                  <Copy size={16} />
+                )
+              }
+            >
+              {copyStatus === 'copied'
+                ? 'Copié dans le presse-papier'
+                : copyStatus === 'error'
+                  ? 'Impossible de copier'
+                  : 'Copier pour LLM (markdown)'}
+            </Button>
             <Button onClick={handleNewSession} icon={<Check size={16} />}>
               Nouvelle séance
             </Button>
@@ -386,7 +429,7 @@ export function SummaryScreen({ session, setSession, nav, resetSession }: Props)
               style={{
                 padding: '12px 14px',
                 borderRadius: 12,
-                background: 'color-mix(in oklch, var(--warn) 12%, white)',
+                background: 'color-mix(in oklch, var(--warn) 18%, var(--surface))',
                 color: 'var(--warn)',
                 fontWeight: 500,
                 fontSize: 13,
@@ -512,8 +555,8 @@ function EditableSerieRow({
             borderRadius: 7,
             border: 'none',
             cursor: 'pointer',
-            background: serie.degressive ? 'var(--accent)' : 'var(--line-2)',
-            color: serie.degressive ? '#fff' : 'var(--subtle)',
+            background: serie.degressive ? 'var(--accent)' : 'var(--surface-2)',
+            color: serie.degressive ? 'var(--accent-ink)' : 'var(--subtle)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -707,7 +750,7 @@ function DropIcon({ active, size = 14 }: { active?: boolean; size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
         d="M5 5l14 14M12 19h7v-7"
-        stroke={active ? '#fff' : 'currentColor'}
+        stroke={active ? 'var(--accent-ink)' : 'currentColor'}
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"

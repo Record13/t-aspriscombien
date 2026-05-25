@@ -4,6 +4,18 @@ type IconProps = {
   stroke?: number
 }
 
+export const Copy = ({ size = 16, color = 'currentColor', stroke = 1.8 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+    <rect x="9" y="9" width="11" height="11" rx="2" stroke={color} strokeWidth={stroke} />
+    <path
+      d="M5 15V6a2 2 0 0 1 2-2h9"
+      stroke={color}
+      strokeWidth={stroke}
+      strokeLinecap="round"
+    />
+  </svg>
+)
+
 export const ChevronRight = ({ size = 16, color = 'currentColor', stroke = 2 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
     <path d="M9 6l6 6-6 6" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
@@ -13,6 +25,18 @@ export const ChevronRight = ({ size = 16, color = 'currentColor', stroke = 2 }: 
 export const ChevronLeft = ({ size = 16, color = 'currentColor', stroke = 2 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
     <path d="M15 6l-6 6 6 6" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+export const ChevronDown = ({ size = 16, color = 'currentColor', stroke = 2 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path d="M6 9l6 6 6-6" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+export const ChevronUp = ({ size = 16, color = 'currentColor', stroke = 2 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path d="M6 15l6-6 6 6" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
 

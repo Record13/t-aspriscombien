@@ -1,0 +1,37 @@
+import type { MetadataRoute } from 'next'
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "T'asPrisCombien — tracker de séance",
+    short_name: "T'asPrisCombien",
+    description: 'Une séance guidée, série par série.',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#09090B',
+    theme_color: '#09090B',
+    lang: 'fr',
+    categories: ['health', 'fitness', 'lifestyle'],
+    icons: [
+      {
+        src: '/icon1',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icon2',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icon2',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
+  }
+}

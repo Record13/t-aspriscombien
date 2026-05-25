@@ -1,27 +1,49 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import Link from 'next/link'
 import { ClerkProvider, Show, UserButton } from '@clerk/nextjs'
-import localFont from 'next/font/local'
-import { Outfit } from 'next/font/google'
+import { dark } from '@clerk/themes'
+import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
+import { ServiceWorkerRegister } from './_components/ServiceWorkerRegister'
+import { ToastProvider } from './_components/Toast'
 import './globals.css'
 
-const outfit = Outfit({
-  variable: '--font-outfit',
+const inter = Inter({
+  variable: '--font-inter',
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800', '900'],
+  weight: ['400', '500', '600', '700'],
 })
 
-const gebuk = localFont({
-  src: [
-    { path: './fonts/Gebuk-Regular.ttf', weight: '100 900', style: 'normal' },
-  ],
-  variable: '--font-gebuk',
-  display: 'swap',
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-space-grotesk',
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: '--font-jetbrains-mono',
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
 })
 
 export const metadata: Metadata = {
   title: "T'asPrisCombien",
   description: 'Une séance guidée, série par série.',
+  applicationName: "T'asPrisCombien",
+  appleWebApp: {
+    capable: true,
+    title: "T'asPrisCombien",
+    statusBarStyle: 'black-translucent',
+  },
+  formatDetection: { telephone: false },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#09090B',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({
@@ -30,11 +52,31 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="fr">
-      <body
-        className={`${outfit.variable} ${gebuk.variable} antialiased`}
-      >
-        <ClerkProvider>
+    <html
+      lang="fr"
+      className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
+    >
+      <body className="antialiased">
+        <ServiceWorkerRegister />
+        <ToastProvider>
+        <ClerkProvider
+          appearance={{
+            baseTheme: dark,
+            variables: {
+              colorPrimary: '#BEF264',
+              colorBackground: '#09090B',
+              colorInputBackground: '#18181B',
+              colorText: '#FAFAFA',
+              colorTextSecondary: '#A1A1AA',
+              colorInputText: '#FAFAFA',
+              borderRadius: '12px',
+              fontFamily: 'var(--font-inter)',
+            },
+            elements: {
+              card: { background: '#18181B', border: '1px solid #27272A' },
+            },
+          }}
+        >
           <header
             style={{
               display: 'flex',
@@ -44,7 +86,7 @@ export default function RootLayout({
               padding: '12px 20px',
               height: 60,
               borderBottom: '1px solid var(--line)',
-              background: 'var(--surface)',
+              background: 'var(--bg)',
             }}
           >
             <Show when="signed-out">
@@ -77,7 +119,7 @@ export default function RootLayout({
                   alignItems: 'center',
                   fontFamily: 'var(--font)',
                   fontSize: 13,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   color: 'var(--accent-ink)',
                   textDecoration: 'none',
                   background: 'var(--accent)',
@@ -122,6 +164,7 @@ export default function RootLayout({
           </header>
           {children}
         </ClerkProvider>
+        </ToastProvider>
       </body>
     </html>
   )

@@ -5,6 +5,8 @@ import type { Exo, Serie, SessionState, TimerState, WorkoutStep } from '../_lib/
 import { WORKOUT_TYPES } from '../_lib/constants'
 import { formatMMSS, newId } from '../_lib/helpers'
 import { useRestTimer } from '../_lib/useRestTimer'
+import { useWakeLock } from '../_lib/useWakeLock'
+import { unlockAudio } from '../_lib/restAlert'
 import {
   Button,
   Card,
@@ -14,7 +16,9 @@ import {
 } from '../_components/primitives'
 import {
   Check,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   Dumbbell,
   Plus,
   Spark,
@@ -51,7 +55,10 @@ export function LoggingScreen({ session, setSession, nav }: Props) {
   const { adjust: adjustTimer } = useRestTimer(session, setSession)
   const status = session.timer.status
 
+  useWakeLock(true)
+
   const enregistrer = () => {
+    unlockAudio()
     const newSerie: Serie = {
       tempId: newId('s'),
       reps,
@@ -101,7 +108,13 @@ export function LoggingScreen({ session, setSession, nav }: Props) {
     nav('summary')
   }
 
-  if (status === 'running' || status === 'finished') {
+  const timerActive = status === 'running' || status === 'finished'
+  const isMinimised = !!session.timer.minimised
+
+  const setMinimised = (m: boolean) =>
+    setSession((s) => ({ ...s, timer: { ...s.timer, minimised: m } }))
+
+  if (timerActive && !isMinimised) {
     return (
       <RestScreen
         timer={session.timer}
@@ -113,6 +126,7 @@ export function LoggingScreen({ session, setSession, nav }: Props) {
         onAdd={adjustTimer}
         onNouvelleSerie={nouvelleSerie}
         onExerciceSuivant={exerciceSuivant}
+        onMinimise={() => setMinimised(true)}
         onClose={() => nav('idle')}
         onFinish={finish}
       />
@@ -132,6 +146,14 @@ export function LoggingScreen({ session, setSession, nav }: Props) {
         background: 'var(--bg)',
       }}
     >
+      {timerActive && isMinimised && (
+        <MinimisedTimerBar
+          timer={session.timer}
+          target={session.restTargetSec}
+          onExpand={() => setMinimised(false)}
+          onAdd={adjustTimer}
+        />
+      )}
       <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <IconButton icon={<X size={16} />} label="quitter" onClick={() => nav('idle')} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -281,10 +303,10 @@ export function LoggingScreen({ session, setSession, nav }: Props) {
                   height: 56,
                   padding: '0 8px',
                   borderRadius: 14,
-                  background: degressive ? 'var(--accent)' : '#FFFFFF',
-                  color: degressive ? '#fff' : 'var(--ink-2)',
+                  background: degressive ? 'var(--accent)' : 'var(--surface)',
+                  color: degressive ? 'var(--accent-ink)' : 'var(--ink-2)',
                   boxShadow: degressive
-                    ? '0 4px 14px -6px color-mix(in oklch, var(--accent) 55%, transparent)'
+                    ? '0 8px 22px -8px color-mix(in oklch, var(--accent) 55%, transparent)'
                     : '0 0 0 1px var(--line) inset',
                   transition: 'all 200ms',
                 }}
@@ -457,6 +479,7 @@ function RestScreen({
   onAdd,
   onNouvelleSerie,
   onExerciceSuivant,
+  onMinimise,
   onClose,
   onFinish,
 }: {
@@ -469,6 +492,7 @@ function RestScreen({
   onAdd: (delta: number) => void
   onNouvelleSerie: () => void
   onExerciceSuivant: () => void
+  onMinimise: () => void
   onClose: () => void
   onFinish: () => void
 }) {
@@ -501,8 +525,8 @@ function RestScreen({
         minHeight: '100%',
         width: '100%',
         background: done
-          ? 'radial-gradient(120% 100% at 50% 0%, color-mix(in oklch, var(--accent) 16%, white) 0%, var(--bg) 75%)'
-          : 'radial-gradient(120% 70% at 50% 0%, color-mix(in oklch, var(--accent) 7%, white) 0%, var(--bg) 60%)',
+          ? 'radial-gradient(120% 100% at 50% 0%, color-mix(in oklch, var(--accent) 20%, var(--bg)) 0%, var(--bg) 75%)'
+          : 'radial-gradient(120% 70% at 50% 0%, color-mix(in oklch, var(--accent) 10%, var(--bg)) 0%, var(--bg) 60%)',
         display: 'flex',
         flexDirection: 'column',
         animation: 'fadeUp 320ms cubic-bezier(0.22, 1, 0.36, 1) both',
@@ -510,7 +534,11 @@ function RestScreen({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px 4px' }}>
-        <IconButton icon={<X size={16} />} label="quitter" onClick={onClose} />
+        <IconButton
+          icon={<ChevronDown size={18} />}
+          label="réduire le minuteur"
+          onClick={onMinimise}
+        />
         <div style={{ flex: 1, textAlign: 'center' }}>
           <div
             style={{
@@ -589,7 +617,7 @@ function RestScreen({
                 height: 18,
                 borderRadius: 999,
                 background: 'var(--ok)',
-                color: '#fff',
+                color: 'var(--bg)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -743,7 +771,7 @@ const timerChipStyle: CSSProperties = {
   borderRadius: 999,
   border: 'none',
   background: 'var(--surface)',
-  boxShadow: '0 0 0 1px var(--line) inset, 0 1px 2px rgba(0,0,0,0.03)',
+  boxShadow: '0 0 0 1px var(--line) inset, 0 4px 12px rgba(0,0,0,0.30)',
   fontFamily: 'var(--mono)',
   fontSize: 13,
   fontWeight: 600,
@@ -819,11 +847,11 @@ function SeriesContext({
     tone === 'first'
       ? 'var(--accent-soft)'
       : tone === 'transition'
-        ? 'color-mix(in oklch, var(--accent) 7%, white)'
+        ? 'color-mix(in oklch, var(--accent) 10%, var(--surface))'
         : 'var(--surface)'
   const ring = tone === 'continuing' ? 'var(--line)' : 'var(--accent-line)'
-  const iconBg = tone === 'continuing' ? 'var(--line-2)' : 'var(--accent)'
-  const iconColor = tone === 'continuing' ? 'var(--ink-2)' : '#fff'
+  const iconBg = tone === 'continuing' ? 'var(--surface-2)' : 'var(--accent)'
+  const iconColor = tone === 'continuing' ? 'var(--ink-2)' : 'var(--accent-ink)'
 
   return (
     <div
@@ -852,7 +880,7 @@ function SeriesContext({
             flexShrink: 0,
           }}
         >
-          {tone === 'continuing' ? setNumber : <Spark size={15} color="#fff" />}
+          {tone === 'continuing' ? setNumber : <Spark size={15} color="var(--accent-ink)" />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
@@ -898,11 +926,157 @@ function DropIcon({
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style} aria-hidden>
       <path
         d="M5 5l14 14M12 19h7v-7"
-        stroke={active ? '#fff' : 'currentColor'}
+        stroke={active ? 'var(--accent-ink)' : 'currentColor'}
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MINIMISED TIMER BAR
+// ══════════════════════════════════════════════════════════════════
+function MinimisedTimerBar({
+  timer,
+  target,
+  onExpand,
+  onAdd,
+}: {
+  timer: TimerState
+  target: number
+  onExpand: () => void
+  onAdd: (delta: number) => void
+}) {
+  const done = timer.status === 'finished'
+  const remaining = timer.remainingSec
+  const overtime = timer.overtimeSec || 0
+  const pct = done ? 1 : Math.max(0, Math.min(1, 1 - remaining / target))
+
+  return (
+    <div
+      role="region"
+      aria-label="Minuteur de repos réduit"
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 30,
+        background: done
+          ? 'color-mix(in oklch, var(--accent) 22%, var(--surface))'
+          : 'var(--surface)',
+        boxShadow: '0 0 0 1px var(--line) inset, 0 8px 24px -10px rgba(0,0,0,0.50)',
+        animation: 'fadeUp 220ms ease both',
+      }}
+    >
+      <button
+        onClick={onExpand}
+        aria-label="Agrandir le minuteur"
+        style={{
+          width: '100%',
+          appearance: 'none',
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          padding: '10px 14px 8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          color: 'var(--ink)',
+        }}
+      >
+        <div
+          style={{
+            position: 'relative',
+            width: 34,
+            height: 34,
+            borderRadius: 999,
+            background: 'var(--surface-2)',
+            color: done ? 'var(--accent)' : 'var(--ink)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'var(--mono)',
+            fontSize: 11,
+            fontWeight: 600,
+            fontVariantNumeric: 'tabular-nums',
+            flexShrink: 0,
+            animation: timer.justFinished ? 'pulse 600ms ease' : 'none',
+          }}
+        >
+          {done ? `+${overtime}` : remaining}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: 'var(--muted)',
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+            }}
+          >
+            {done ? 'Repos terminé' : 'Repos en cours'}
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: -0.2,
+              color: done ? 'var(--accent)' : 'var(--ink)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {done ? `+${formatMMSS(overtime)}` : formatMMSS(remaining)}
+            <span style={{ color: 'var(--subtle)', fontWeight: 400, marginLeft: 6 }}>
+              {done ? '— prêt' : `/ ${formatMMSS(target)}`}
+            </span>
+          </div>
+        </div>
+        <div
+          onClick={(e) => {
+            e.stopPropagation()
+            onAdd(15)
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="ajouter 15 secondes"
+          style={{
+            height: 30,
+            padding: '0 10px',
+            borderRadius: 999,
+            background: 'var(--surface-2)',
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--mono)',
+            fontSize: 11,
+            fontWeight: 600,
+            display: 'inline-flex',
+            alignItems: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          +15s
+        </div>
+        <ChevronUp size={16} color="var(--muted)" />
+      </button>
+      <div
+        style={{
+          height: 2,
+          width: '100%',
+          background: 'var(--line-2)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${pct * 100}%`,
+            background: done ? 'var(--accent)' : 'var(--accent-strong)',
+            transition: 'width 600ms linear',
+          }}
+        />
+      </div>
+    </div>
   )
 }

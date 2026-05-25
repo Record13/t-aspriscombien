@@ -2,6 +2,7 @@
 
 import { Dispatch, SetStateAction, useEffect, useCallback } from 'react'
 import type { SessionState } from './types'
+import { playRestEndAlert } from './restAlert'
 
 export function useRestTimer(
   session: SessionState,
@@ -49,6 +50,7 @@ export function useRestTimer(
 
   useEffect(() => {
     if (!session.timer.justFinished) return
+    playRestEndAlert()
     const id = setTimeout(
       () =>
         setSession((s) => ({

@@ -55,23 +55,28 @@ export function Button({
   const variants: Record<ButtonVariant, CSSProperties> = {
     primary: {
       background: hover
-        ? 'color-mix(in oklch, var(--accent) 92%, white)'
+        ? 'color-mix(in oklch, var(--accent) 88%, black)'
         : 'var(--accent)',
       color: 'var(--accent-ink)',
+      boxShadow: hover
+        ? '0 12px 30px -10px color-mix(in oklch, var(--accent) 60%, transparent)'
+        : '0 6px 18px -8px color-mix(in oklch, var(--accent) 45%, transparent)',
     },
     secondary: {
-      background: hover ? '#F7F7F7' : '#FFFFFF',
+      background: hover ? 'var(--surface-2)' : 'var(--surface)',
       color: 'var(--ink)',
       boxShadow: '0 0 0 1px var(--line) inset',
     },
     ghost: {
-      background: hover ? '#F7F7F7' : 'transparent',
+      background: hover ? 'var(--surface-2)' : 'transparent',
       color: 'var(--ink-2)',
     },
     danger: {
-      background: hover ? '#FFF1EC' : '#FFFFFF',
-      color: 'oklch(0.55 0.22 25)',
-      boxShadow: '0 0 0 1px color-mix(in oklch, oklch(0.55 0.22 25) 22%, var(--line)) inset',
+      background: hover
+        ? 'color-mix(in oklch, var(--danger) 18%, var(--surface))'
+        : 'var(--surface)',
+      color: 'var(--danger)',
+      boxShadow: '0 0 0 1px color-mix(in oklch, var(--danger) 28%, var(--line)) inset',
     },
   }
 
@@ -119,8 +124,8 @@ export function Card({
         borderRadius: 'var(--radius)',
         boxShadow:
           hover && interactive
-            ? '0 0 0 1px var(--line) inset, 0 8px 28px -10px rgba(0,0,0,0.08)'
-            : '0 0 0 1px var(--line) inset, 0 1px 2px rgba(0,0,0,0.03)',
+            ? '0 0 0 1px color-mix(in oklch, var(--line) 60%, var(--accent-line)) inset, 0 12px 32px -12px rgba(0,0,0,0.6)'
+            : '0 0 0 1px var(--line) inset, 0 1px 2px rgba(0,0,0,0.3)',
         transition: 'box-shadow 180ms ease, transform 120ms',
         transform: hover && interactive ? 'translateY(-1px)' : 'none',
         cursor: interactive ? 'pointer' : 'default',
@@ -197,10 +202,10 @@ export function NumericInput({
           display: 'flex',
           alignItems: 'center',
           height: sz.h,
-          background: '#FFFFFF',
+          background: 'var(--surface)',
           borderRadius: 14,
           boxShadow: focus
-            ? '0 0 0 1.5px var(--accent) inset, 0 0 0 4px color-mix(in oklch, var(--accent) 18%, transparent)'
+            ? '0 0 0 1.5px var(--accent) inset, 0 0 0 4px color-mix(in oklch, var(--accent) 22%, transparent)'
             : '0 0 0 1px var(--line) inset',
           transition: 'box-shadow 160ms',
         }}
@@ -307,7 +312,7 @@ export function Segmented<T extends string>({
       style={{
         display: 'inline-flex',
         padding: 4,
-        background: '#F4F4F5',
+        background: 'var(--surface-2)',
         borderRadius: 10,
         width: '100%',
       }}
@@ -324,13 +329,13 @@ export function Segmented<T extends string>({
               padding: '0 12px',
               border: 'none',
               cursor: 'pointer',
-              background: active ? '#FFFFFF' : 'transparent',
+              background: active ? 'var(--surface)' : 'transparent',
               color: active ? 'var(--ink)' : 'var(--muted)',
               fontWeight: active ? 600 : 500,
               fontSize: 13,
               borderRadius: 8,
               boxShadow: active
-                ? '0 1px 2px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)'
+                ? '0 1px 2px rgba(0,0,0,0.40), 0 0 0 1px var(--line)'
                 : 'none',
               transition: 'all 160ms ease',
             }}
@@ -365,7 +370,7 @@ export function Toggle({
         borderRadius: 999,
         border: 'none',
         cursor: 'pointer',
-        background: checked ? 'var(--accent)' : '#E4E4E7',
+        background: checked ? 'var(--accent)' : 'var(--surface-2)',
         position: 'relative',
         padding: 0,
         transition: 'background 200ms',
@@ -379,8 +384,8 @@ export function Toggle({
           width: t,
           height: t,
           borderRadius: 999,
-          background: '#fff',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.15), 0 1px 0 rgba(0,0,0,0.04)',
+          background: checked ? 'var(--accent-ink)' : 'var(--ink)',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.40), 0 1px 0 rgba(0,0,0,0.20)',
           transition: 'left 200ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       />
@@ -399,10 +404,10 @@ export function Pill({
   icon?: ReactNode
 }) {
   const tones = {
-    neutral: { bg: '#F4F4F5', fg: '#404040', border: 'transparent' },
+    neutral: { bg: 'var(--surface-2)', fg: 'var(--ink-2)', border: 'transparent' },
     accent: { bg: 'var(--accent-soft)', fg: 'var(--accent)', border: 'transparent' },
-    ok: { bg: 'color-mix(in oklch, var(--ok) 14%, white)', fg: 'var(--ok)', border: 'transparent' },
-    warn: { bg: 'color-mix(in oklch, var(--warn) 14%, white)', fg: 'var(--warn)', border: 'transparent' },
+    ok: { bg: 'color-mix(in oklch, var(--ok) 18%, var(--surface))', fg: 'var(--ok)', border: 'transparent' },
+    warn: { bg: 'color-mix(in oklch, var(--warn) 18%, var(--surface))', fg: 'var(--warn)', border: 'transparent' },
     outline: { bg: 'transparent', fg: 'var(--muted)', border: 'var(--line)' },
   }[tone]
   return (
@@ -516,8 +521,8 @@ export function IconButton({
   const [hover, setHover] = useState(false)
   const styles =
     variant === 'ghost'
-      ? { bg: hover ? '#F4F4F5' : 'transparent', ring: 'transparent', color: 'var(--ink-2)' }
-      : { bg: hover ? '#F4F4F5' : '#FFFFFF', ring: 'var(--line)', color: 'var(--ink-2)' }
+      ? { bg: hover ? 'var(--surface-2)' : 'transparent', ring: 'transparent', color: 'var(--ink-2)' }
+      : { bg: hover ? 'var(--surface-2)' : 'var(--surface)', ring: 'var(--line)', color: 'var(--ink-2)' }
   return (
     <button
       onClick={onClick}
