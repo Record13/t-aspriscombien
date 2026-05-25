@@ -5,12 +5,14 @@ export default function Home() {
   return (
     <main
       style={{
-        minHeight: 'calc(100dvh - 60px)',
+        minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '32px 20px',
+        padding: '24px 20px',
+        maxWidth: 480,
+        margin: '0 auto',
         background:
           'radial-gradient(120% 70% at 50% 0%, color-mix(in oklch, var(--accent) 8%, var(--bg)) 0%, var(--bg) 60%)',
         textAlign: 'center',
@@ -20,12 +22,12 @@ export default function Home() {
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 8,
-          padding: '5px 12px 5px 6px',
+          gap: 6,
+          padding: '4px 10px 4px 6px',
           borderRadius: 999,
           background: 'var(--surface)',
           boxShadow: '0 0 0 1px var(--line) inset',
-          marginBottom: 24,
+          marginBottom: 16,
           fontSize: 11,
           color: 'var(--ink-2)',
           fontWeight: 500,
@@ -33,15 +35,15 @@ export default function Home() {
       >
         <span
           style={{
-            width: 18,
-            height: 18,
+            width: 16,
+            height: 16,
             borderRadius: 999,
             background: 'var(--accent-soft)',
             color: 'var(--accent)',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 10,
+            fontSize: 9,
           }}
         >
           ✦
@@ -50,12 +52,12 @@ export default function Home() {
       </div>
       <h1
         style={{
-          fontSize: 56,
+          fontSize: 38,
           fontWeight: 700,
-          letterSpacing: -2.4,
-          margin: '0 0 14px',
+          letterSpacing: -1.6,
+          margin: '0 0 10px',
           fontFamily: 'var(--display)',
-          lineHeight: 0.96,
+          lineHeight: 1.02,
           color: 'var(--ink)',
         }}
       >
@@ -65,11 +67,11 @@ export default function Home() {
       </h1>
       <p
         style={{
-          margin: '0 0 32px',
+          margin: '0 0 22px',
           color: 'var(--muted)',
-          fontSize: 16,
-          lineHeight: 1.5,
-          maxWidth: 420,
+          fontSize: 14,
+          lineHeight: 1.45,
+          maxWidth: 340,
         }}
       >
         Une séance guidée, série par série. Pas de tableaux de bord — juste ce que tu portes, et
@@ -79,50 +81,50 @@ export default function Home() {
         <Link
           href="/seance"
           style={{
-            height: 56,
-            padding: '0 26px',
-            borderRadius: 14,
+            height: 50,
+            padding: '0 22px',
+            borderRadius: 12,
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 10,
+            gap: 8,
             fontFamily: 'var(--font)',
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: 700,
             color: 'var(--accent-ink)',
             textDecoration: 'none',
             background: 'var(--accent)',
             boxShadow:
-              '0 12px 30px -10px color-mix(in oklch, var(--accent) 50%, transparent)',
+              '0 10px 24px -10px color-mix(in oklch, var(--accent) 50%, transparent)',
             letterSpacing: -0.2,
           }}
         >
           Commencer une séance
-          <span style={{ fontSize: 18 }}>→</span>
+          <span style={{ fontSize: 16 }}>→</span>
         </Link>
       </Show>
       <Show when="signed-out">
         <Link
           href="/sign-in?redirect_url=/seance"
           style={{
-            height: 56,
-            padding: '0 26px',
-            borderRadius: 14,
+            height: 50,
+            padding: '0 22px',
+            borderRadius: 12,
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 10,
+            gap: 8,
             fontFamily: 'var(--font)',
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: 700,
             color: 'var(--accent-ink)',
             textDecoration: 'none',
             background: 'var(--accent)',
             boxShadow:
-              '0 12px 30px -10px color-mix(in oklch, var(--accent) 50%, transparent)',
+              '0 10px 24px -10px color-mix(in oklch, var(--accent) 50%, transparent)',
             letterSpacing: -0.2,
           }}
         >
           Se connecter pour commencer
-          <span style={{ fontSize: 18 }}>→</span>
+          <span style={{ fontSize: 16 }}>→</span>
         </Link>
       </Show>
     </main>

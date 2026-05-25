@@ -4,7 +4,7 @@ export default function Page() {
   return (
     <div
       style={{
-        minHeight: 'calc(100dvh - 60px)',
+        minHeight: '100dvh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
