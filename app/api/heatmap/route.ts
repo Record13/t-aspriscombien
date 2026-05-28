@@ -83,7 +83,7 @@ type ExoRow = {
 }
 type SeanceRow = { date: string; exos: ExoRow[] | null }
 
-type RunRow = { date: string; distance_m: number; duration_seconds: number }
+type RunRow = { date: string; distance_m: number }
 type SprintExerciseRow = { exercise_muscles: ExerciseMuscleRow[] | null }
 
 function isoDate(d: Date): string {
@@ -135,7 +135,7 @@ export async function GET(req: Request) {
 
   let runsQuery = supabase
     .from('runs')
-    .select('date, distance_m, duration_seconds')
+    .select('date, distance_m')
     .order('date', { ascending: false })
   if (periodStart) {
     runsQuery = runsQuery.gte('date', isoDate(periodStart))

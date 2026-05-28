@@ -4,6 +4,7 @@ import { Dispatch, SetStateAction, useState } from 'react'
 import type { Serie, SessionState, WorkoutStep } from '../_lib/types'
 import { WORKOUT_TYPES } from '../_lib/constants'
 import { formatSessionAsText } from '../_lib/helpers'
+import { invalidateExosCache } from '../_lib/useExos'
 import { Button, Card, IconButton, TopBar } from '../_components/primitives'
 import { Check, ChevronDown, ChevronLeft, Copy, Minus, Plus, X } from '../_components/icons'
 
@@ -125,6 +126,7 @@ export function SummaryScreen({ session, setSession, nav, resetSession }: Props)
         setSaveStatus('error')
         return
       }
+      invalidateExosCache()
       setSaveStatus('saved')
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Erreur réseau')

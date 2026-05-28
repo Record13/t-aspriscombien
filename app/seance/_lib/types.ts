@@ -9,6 +9,7 @@ export type WorkoutStep =
   | 'session_detail'
   | 'manual_entry'
   | 'athletics'
+  | 'athletics_summary'
 
 export type Run = {
   id: string
@@ -20,10 +21,13 @@ export type Run = {
 
 export type NavContext = {
   seanceId?: string | null
-  // Vue d'entrée pour AthleticsScreen :
-  //   - 'chrono' (depuis Idle Sprint) → ouvre directement le timer
-  //   - 'hub' (depuis Stats « Voir tout ») → ouvre l'historique
-  athleticsView?: 'hub' | 'chrono'
+  // Distance pré-sélectionnée pour ChronoView (depuis Stats Athlé → drill-down).
+  // Si absent, ChronoView ouvre sur la dernière distance utilisée.
+  athleticsDistance?: number
+  // IDs des runs qui composent la « séance » à récapituler.
+  // Renseigné par AthleticsScreen quand l'utilisateur termine sa session,
+  // ou par HistoryScreen quand on consulte une séance athlé passée.
+  athleticsRunIds?: string[]
 }
 
 export type NavFn = (step: WorkoutStep, ctx?: NavContext) => void

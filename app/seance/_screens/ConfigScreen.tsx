@@ -1,23 +1,34 @@
 'use client'
 
 import { Dispatch, SetStateAction, useState } from 'react'
-import type { SessionState, WorkoutStep } from '../_lib/types'
+import type { NavContext, SessionState, WorkoutStep } from '../_lib/types'
 import { WORKOUT_TYPES, REST_PRESETS } from '../_lib/constants'
 import { formatMMSS } from '../_lib/helpers'
 import { Button, IconButton, Steps, TopBar } from '../_components/primitives'
 import { Check, ChevronLeft, ChevronRight, Minus, Plus, Timer } from '../_components/icons'
 
+// ID dédié pour l'athlétisme — pas dans WORKOUT_TYPES pour ne pas polluer
+// les types de séance persistés en DB (les seances n'ont pas de type 'athletics').
+const ATHLETICS_ID = 'athletics'
+
 type Props = {
   session: SessionState
   setSession: Dispatch<SetStateAction<SessionState>>
-  nav: (s: WorkoutStep) => void
+  nav: (s: WorkoutStep, ctx?: NavContext) => void
 }
 
 export function ConfigScreen({ session, setSession, nav }: Props) {
   const [type, setType] = useState(session.type || 'push')
   const [rest, setRest] = useState(session.restTargetSec || 90)
-  const canContinue = !!type && rest > 0
+  const isAthletics = type === ATHLETICS_ID
+  const canContinue = !!type && (isAthletics || rest > 0)
   const confirm = () => {
+    if (isAthletics) {
+      // Pas de timer de récup pour le sprint — on bascule direct sur le
+      // ChronoView sans toucher à la session muscu en cours.
+      nav('athletics')
+      return
+    }
     // Starting (or restarting) a session from the config step: always wipe any
     // leftover exos from a previous run the user may have abandoned via the X.
     setSession((s) => ({
@@ -153,6 +164,72 @@ export function ConfigScreen({ session, setSession, nav }: Props) {
           })}
         </div>
 
+        <button
+          onClick={() => setType(ATHLETICS_ID)}
+          style={{
+            appearance: 'none',
+            textAlign: 'left',
+            cursor: 'pointer',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '14px 14px',
+            borderRadius: 14,
+            border: 'none',
+            background: isAthletics ? 'var(--accent-soft)' : 'var(--surface)',
+            boxShadow: isAthletics
+              ? '0 0 0 1.5px var(--accent) inset, 0 4px 14px -6px color-mix(in oklch, var(--accent) 45%, transparent)'
+              : '0 0 0 1px var(--line) inset',
+            transition: 'all 160ms ease',
+            position: 'relative',
+            marginBottom: 28,
+          }}
+        >
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              background: isAthletics ? 'var(--accent)' : 'var(--surface-2)',
+              color: isAthletics ? 'var(--accent-ink)' : 'var(--ink-2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              transition: 'all 200ms',
+            }}
+          >
+            <Timer size={18} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>Athlétisme</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+              Sprints courts · chrono dédié, sans récup
+            </div>
+          </div>
+          {isAthletics && (
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 999,
+                background: 'var(--accent)',
+                color: 'var(--accent-ink)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                animation: 'fadeUp 220ms ease both',
+              }}
+            >
+              <Check size={11} stroke={3} />
+            </div>
+          )}
+        </button>
+
+        {!isAthletics && (
+        <>
         <h3
           style={{
             fontSize: 17,
@@ -259,6 +336,8 @@ export function ConfigScreen({ session, setSession, nav }: Props) {
             <Plus size={12} />
           </button>
         </div>
+        </>
+        )}
       </div>
 
       <div
@@ -272,7 +351,7 @@ export function ConfigScreen({ session, setSession, nav }: Props) {
           disabled={!canContinue}
           trailingIcon={<ChevronRight size={16} />}
         >
-          Continuer
+          {isAthletics ? 'Aller au chrono' : 'Continuer'}
         </Button>
       </div>
     </div>

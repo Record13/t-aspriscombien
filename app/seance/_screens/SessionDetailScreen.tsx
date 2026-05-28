@@ -9,6 +9,7 @@ import { formatMMSS } from '../_lib/helpers'
 import { Button, Card, IconButton, TopBar } from '../_components/primitives'
 import { ChevronLeft, Copy, Trash } from '../_components/icons'
 import { formatSeanceAsText } from '../_lib/helpers'
+import { invalidateExosCache } from '../_lib/useExos'
 import { useToast } from '../../_components/Toast'
 
 type Props = {
@@ -106,6 +107,7 @@ export function SessionDetailScreen({ seanceId, nav }: Props) {
         setConfirmDelete(false)
         return
       }
+      invalidateExosCache()
       toast.ok('Séance supprimée.')
       nav('history')
     } catch (e) {

@@ -2,32 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createSupabaseServer } from '../../lib/supabase-server'
 
-// La colonne DB s'appelle `duration_seconds` (int) mais stocke en réalité des ms.
-// On expose `duration_ms` côté front pour garder une sémantique correcte.
-type RunRowDB = {
-  id: string
-  date: string
-  distance_m: number
-  duration_seconds: number
-  created_at: string
-}
-
-type RunOut = {
+type RunRow = {
   id: string
   date: string
   distance_m: number
   duration_ms: number
   created_at: string
-}
-
-function toOut(r: RunRowDB): RunOut {
-  return {
-    id: r.id,
-    date: r.date,
-    distance_m: r.distance_m,
-    duration_ms: r.duration_seconds,
-    created_at: r.created_at,
-  }
 }
 
 type PostBody = {
@@ -53,7 +33,7 @@ export async function GET(req: NextRequest) {
   const supabase = createSupabaseServer(token)
   let query = supabase
     .from('runs')
-    .select('id, date, distance_m, duration_seconds, created_at')
+    .select('id, date, distance_m, duration_ms, created_at')
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(500)
@@ -63,12 +43,12 @@ export async function GET(req: NextRequest) {
   }
 
   const { data, error } = (await query) as unknown as {
-    data: RunRowDB[] | null
+    data: RunRow[] | null
     error: { message: string } | null
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ runs: (data ?? []).map(toOut) })
+  return NextResponse.json({ runs: data ?? [] })
 }
 
 export async function POST(req: NextRequest) {
@@ -97,14 +77,11 @@ export async function POST(req: NextRequest) {
     body.date && isValidISODate(body.date) ? body.date : new Date().toISOString().slice(0, 10)
 
   const supabase = createSupabaseServer(token)
-  const { data, error } = (await supabase
+  const { data, error } = await supabase
     .from('runs')
-    .insert({ distance_m: distance, duration_seconds: duration, date })
-    .select('id, date, distance_m, duration_seconds, created_at')
-    .single()) as unknown as {
-    data: RunRowDB | null
-    error: { message: string } | null
-  }
+    .insert({ distance_m: distance, duration_ms: duration, date })
+    .select('id, date, distance_m, duration_ms, created_at')
+    .single()
 
   if (error || !data) {
     return NextResponse.json(
@@ -112,5 +89,5 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     )
   }
-  return NextResponse.json({ run: toOut(data) })
+  return NextResponse.json({ run: data })
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, CSSProperties, ReactNode } from 'react'
+import { useEffect, useState, useRef, CSSProperties, ReactNode } from 'react'
 import { Minus, Plus } from './icons'
 
 // ─── Button ────────────────────────────────────────────────────────
@@ -689,5 +689,114 @@ function StopSquare({ size = 10, color = 'currentColor' }: { size?: number; colo
     <svg width={size} height={size} viewBox="0 0 10 10" aria-hidden>
       <rect x="1" y="1" width="8" height="8" rx="1.5" fill={color} />
     </svg>
+  )
+}
+
+// ─── Confirm dialog ────────────────────────────────────────────────
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirmer',
+  cancelLabel = 'Annuler',
+  tone = 'danger',
+  busy = false,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean
+  title: ReactNode
+  message?: ReactNode
+  confirmLabel?: string
+  cancelLabel?: string
+  tone?: 'danger' | 'primary'
+  busy?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !busy) onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, busy, onCancel])
+
+  if (!open) return null
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={() => {
+        if (!busy) onCancel()
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        background: 'color-mix(in oklch, var(--bg) 70%, transparent)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        animation: 'dialogFadeIn 160ms ease both',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 360,
+          background: 'var(--surface)',
+          borderRadius: 16,
+          boxShadow:
+            '0 0 0 1px var(--line) inset, 0 30px 60px -20px rgba(0,0,0,0.6)',
+          padding: 20,
+          animation: 'dialogPopIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 700,
+            color: 'var(--ink)',
+            letterSpacing: -0.2,
+            fontFamily: 'var(--display)',
+            marginBottom: 6,
+          }}
+        >
+          {title}
+        </div>
+        {message && (
+          <div
+            style={{
+              fontSize: 13,
+              color: 'var(--muted)',
+              lineHeight: 1.5,
+              marginBottom: 18,
+            }}
+          >
+            {message}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="secondary" size="md" onClick={onCancel} disabled={busy}>
+            {cancelLabel}
+          </Button>
+          <Button
+            variant={tone === 'danger' ? 'danger' : 'primary'}
+            size="md"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? 'Suppression…' : confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }

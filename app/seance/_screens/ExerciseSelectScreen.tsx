@@ -1,11 +1,12 @@
 'use client'
 
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react'
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react'
 import type { SessionState, WorkoutStep } from '../_lib/types'
 import { SUGGESTIONS, WORKOUT_TYPES } from '../_lib/constants'
 import { formatMMSS, newId } from '../_lib/helpers'
+import { useExos, filterExos, MAX_EXO_PILLS, type ExoSuggestion } from '../_lib/useExos'
 import { Button, FinishPill, IconButton, Pill, Steps, TopBar } from '../_components/primitives'
-import { Check, ChevronLeft, ChevronRight, Dumbbell, Timer } from '../_components/icons'
+import { Check, ChevronLeft, ChevronRight, Dumbbell, Search, Timer } from '../_components/icons'
 
 type Props = {
   session: SessionState
@@ -20,28 +21,56 @@ export function ExerciseSelectScreen({ session, setSession, nav }: Props) {
 
   const [name, setName] = useState(isFirst ? session.exos?.[0]?.nom || '' : '')
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const sugg = SUGGESTIONS[session.type] || SUGGESTIONS.push
   const type = WORKOUT_TYPES.find((t) => t.id === session.type)
+
+  const { exos: dbExos, loading: exosLoading } = useExos()
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
   const canContinue = name.trim().length > 1
 
-  const confirm = () => {
+  // Liste filtrée des exos précédemment faits, exclus ceux déjà ajoutés dans cette séance.
+  // Sans requête : strict sur le type de séance courant (jambes → uniquement jambes).
+  const candidates = useMemo(() => {
+    const usedNames = new Set(prevExos.map((e) => e.nom.trim().toLowerCase()))
+    const filtered = filterExos(dbExos, name, session.type)
+    return filtered
+      .filter((e) => !usedNames.has(e.nom.trim().toLowerCase()))
+      .slice(0, MAX_EXO_PILLS)
+  }, [dbExos, name, session.type, prevExos])
+
+  // Suggestions statiques pour COMPLÉTER quand la DB n'a pas assez d'exos
+  // du bon type (premier passage sur jambes par ex.). On comble jusqu'à MAX.
+  const fallbackSugg = useMemo(() => {
+    const dbNames = new Set(candidates.map((e) => e.nom.trim().toLowerCase()))
+    const prevNames = new Set(prevExos.map((e) => e.nom.trim().toLowerCase()))
+    const base = SUGGESTIONS[session.type] || SUGGESTIONS.push
+    const slots = MAX_EXO_PILLS - candidates.length
+    if (slots <= 0) return []
+    return base
+      .filter((s) => {
+        const k = s.trim().toLowerCase()
+        return !dbNames.has(k) && !prevNames.has(k)
+      })
+      .slice(0, slots)
+  }, [session.type, candidates, prevExos])
+
+  const confirm = (chosenName?: string) => {
+    const finalName = (chosenName ?? name).trim()
+    if (finalName.length < 2) return
     setSession((s) => {
-      const trimmed = name.trim()
       if (isFirst) {
         return {
           ...s,
-          exos: [{ tempId: newId('e'), nom: trimmed, series: [] }],
+          exos: [{ tempId: newId('e'), nom: finalName, series: [] }],
           currentExoIndex: 0,
           currentSerieIndex: 0,
         }
       }
       return {
         ...s,
-        exos: [...s.exos, { tempId: newId('e'), nom: trimmed, series: [] }],
+        exos: [...s.exos, { tempId: newId('e'), nom: finalName, series: [] }],
         currentExoIndex: s.exos.length,
         currentSerieIndex: 0,
       }
@@ -203,21 +232,38 @@ export function ExerciseSelectScreen({ session, setSession, nav }: Props) {
         >
           <div
             style={{
-              fontSize: 11,
-              color: 'var(--muted)',
-              fontWeight: 500,
-              letterSpacing: 0.3,
-              textTransform: 'uppercase',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
               marginBottom: 6,
             }}
           >
-            Nom de l&apos;exercice
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--muted)',
+                fontWeight: 500,
+                letterSpacing: 0.3,
+                textTransform: 'uppercase',
+              }}
+            >
+              Nom de l&apos;exercice
+            </div>
+            <Search size={13} color="var(--subtle)" />
           </div>
           <input
             ref={inputRef}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={isFirst ? 'Développé couché' : 'Élévations latérales'}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && canContinue) {
+                e.preventDefault()
+                confirm()
+              }
+            }}
+            placeholder={isFirst ? 'Tape ou cherche un exercice…' : 'Cherche un exercice…'}
+            enterKeyHint="done"
             style={{
               width: '100%',
               border: 'none',
@@ -233,48 +279,67 @@ export function ExerciseSelectScreen({ session, setSession, nav }: Props) {
           />
         </div>
 
-        <div style={{ marginTop: 22 }}>
+        {/* Pills : DB d'abord (avec mini badge kg), puis suggestions statiques
+            pour compléter jusqu'à MAX_EXO_PILLS. Filtrées strictement par type
+            quand pas de requête. */}
+        {!exosLoading && (candidates.length > 0 || fallbackSugg.length > 0) && (
+          <div style={{ marginTop: 18 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--muted)',
+                fontWeight: 600,
+                letterSpacing: 0.4,
+                textTransform: 'uppercase',
+                marginBottom: 10,
+              }}
+            >
+              {name.trim()
+                ? 'Résultats'
+                : candidates.length > 0
+                  ? `Tes ${type?.label ?? 'exercices'}`
+                  : `Suggestions ${type?.label ?? ''}`.trim()}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {candidates.map((exo) => (
+                <ExoPill
+                  key={exo.nom}
+                  exo={exo}
+                  selected={name.trim().toLowerCase() === exo.nom.toLowerCase()}
+                  onPick={() => setName(exo.nom)}
+                />
+              ))}
+              {fallbackSugg.map((s) => (
+                <StaticPill
+                  key={s}
+                  label={s}
+                  selected={name === s}
+                  onPick={() => setName(s)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* État vide quand on cherche un terme qui ne matche rien en DB */}
+        {!exosLoading && candidates.length === 0 && name.trim().length > 1 && (
           <div
             style={{
-              fontSize: 11,
+              marginTop: 18,
+              padding: '14px 16px',
+              borderRadius: 12,
+              background: 'var(--surface-2)',
+              boxShadow: '0 0 0 1px var(--line) inset',
+              fontSize: 12,
               color: 'var(--muted)',
-              fontWeight: 600,
-              letterSpacing: 0.4,
-              textTransform: 'uppercase',
-              marginBottom: 10,
+              lineHeight: 1.5,
             }}
           >
-            Suggestions
+            Aucun exo en DB pour «{' '}
+            <span style={{ color: 'var(--ink-2)', fontWeight: 600 }}>{name.trim()}</span> ». Tu
+            peux le valider pour le créer.
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {sugg
-              .filter((s) => !prevExos.some((e) => e.nom === s))
-              .map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setName(s)}
-                  style={{
-                    appearance: 'none',
-                    cursor: 'pointer',
-                    padding: '8px 12px',
-                    borderRadius: 999,
-                    background: name === s ? 'var(--accent-soft)' : 'var(--surface)',
-                    color: name === s ? 'var(--accent)' : 'var(--ink-2)',
-                    boxShadow:
-                      name === s
-                        ? '0 0 0 1px var(--accent) inset'
-                        : '0 0 0 1px var(--line) inset',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    border: 'none',
-                    transition: 'all 140ms',
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-          </div>
-        </div>
+        )}
       </div>
 
       <div
@@ -284,7 +349,7 @@ export function ExerciseSelectScreen({ session, setSession, nav }: Props) {
         }}
       >
         <Button
-          onClick={confirm}
+          onClick={() => confirm()}
           disabled={!canContinue}
           trailingIcon={<ChevronRight size={16} />}
         >
@@ -292,5 +357,95 @@ export function ExerciseSelectScreen({ session, setSession, nav }: Props) {
         </Button>
       </div>
     </div>
+  )
+}
+
+function StaticPill({
+  label,
+  selected,
+  onPick,
+}: {
+  label: string
+  selected: boolean
+  onPick: () => void
+}) {
+  return (
+    <button
+      onClick={onPick}
+      style={{
+        appearance: 'none',
+        cursor: 'pointer',
+        padding: '8px 12px',
+        borderRadius: 999,
+        background: selected ? 'var(--accent-soft)' : 'var(--surface)',
+        color: selected ? 'var(--accent)' : 'var(--ink-2)',
+        boxShadow: selected
+          ? '0 0 0 1.5px var(--accent) inset'
+          : '0 0 0 1px var(--line) inset',
+        fontSize: 13,
+        fontWeight: 500,
+        border: 'none',
+        transition: 'all 140ms',
+        fontFamily: 'var(--font)',
+        opacity: 0.85,
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+function ExoPill({
+  exo,
+  selected,
+  onPick,
+}: {
+  exo: ExoSuggestion
+  selected: boolean
+  onPick: () => void
+}) {
+  return (
+    <button
+      onClick={onPick}
+      title={
+        exo.lastPoids != null && exo.lastReps != null
+          ? `${exo.count}× · dernière ${exo.lastPoids}kg × ${exo.lastReps}`
+          : `${exo.count}×`
+      }
+      style={{
+        appearance: 'none',
+        cursor: 'pointer',
+        padding: '8px 12px',
+        borderRadius: 999,
+        background: selected ? 'var(--accent-soft)' : 'var(--surface)',
+        color: selected ? 'var(--accent)' : 'var(--ink-2)',
+        boxShadow: selected
+          ? '0 0 0 1.5px var(--accent) inset'
+          : '0 0 0 1px var(--line) inset',
+        fontSize: 13,
+        fontWeight: 500,
+        border: 'none',
+        transition: 'all 140ms',
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        gap: 6,
+        fontFamily: 'var(--font)',
+      }}
+    >
+      <span>{exo.nom}</span>
+      {exo.lastPoids != null && (
+        <span
+          style={{
+            fontSize: 10,
+            color: selected ? 'var(--accent)' : 'var(--subtle)',
+            fontFamily: 'var(--mono)',
+            fontVariantNumeric: 'tabular-nums',
+            opacity: 0.85,
+          }}
+        >
+          {exo.lastPoids}kg
+        </span>
+      )}
+    </button>
   )
 }

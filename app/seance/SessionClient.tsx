@@ -13,6 +13,7 @@ import { HistoryScreen } from './_screens/HistoryScreen'
 import { SessionDetailScreen } from './_screens/SessionDetailScreen'
 import { ManualEntryScreen } from './_screens/ManualEntryScreen'
 import { AthleticsScreen } from './_screens/AthleticsScreen'
+import { AthleticsSummaryScreen } from './_screens/AthleticsSummaryScreen'
 
 const DEFAULT_REST = 90
 
@@ -36,14 +37,20 @@ export default function SessionClient() {
   const [step, setStep] = useState<WorkoutStep>('idle')
   const [session, setSession] = useState<SessionState>(initialSession)
   const [selectedSeanceId, setSelectedSeanceId] = useState<string | null>(null)
-  const [athleticsInitialView, setAthleticsInitialView] = useState<'hub' | 'chrono'>(
-    'chrono',
-  )
+  const [athleticsInitialDistance, setAthleticsInitialDistance] = useState<number | null>(null)
+  const [athleticsRunIds, setAthleticsRunIds] = useState<string[]>([])
+  const [athleticsSummaryOrigin, setAthleticsSummaryOrigin] = useState<'live' | 'history'>('live')
 
   const resetSession = () => setSession(initialSession())
   const nav = (s: WorkoutStep, ctx?: NavContext) => {
     if (ctx && 'seanceId' in ctx) setSelectedSeanceId(ctx.seanceId ?? null)
-    if (ctx?.athleticsView) setAthleticsInitialView(ctx.athleticsView)
+    // Distance pré-sélectionnée : null par défaut → ChronoView utilise la dernière utilisée.
+    setAthleticsInitialDistance(ctx?.athleticsDistance ?? null)
+    if (ctx?.athleticsRunIds) {
+      setAthleticsRunIds(ctx.athleticsRunIds)
+      // Provenance déduite de l'écran qui déclenche : history → 'history', sinon 'live'.
+      setAthleticsSummaryOrigin(s === 'athletics_summary' && step === 'history' ? 'history' : 'live')
+    }
     setStep(s)
   }
 
@@ -86,7 +93,14 @@ export default function SessionClient() {
           <ManualEntryScreen seanceId={selectedSeanceId} nav={nav} />
         )}
         {step === 'athletics' && (
-          <AthleticsScreen nav={nav} initialView={athleticsInitialView} />
+          <AthleticsScreen nav={nav} initialDistance={athleticsInitialDistance} />
+        )}
+        {step === 'athletics_summary' && (
+          <AthleticsSummaryScreen
+            runIds={athleticsRunIds}
+            origin={athleticsSummaryOrigin}
+            nav={nav}
+          />
         )}
       </StepSwitcher>
     </div>

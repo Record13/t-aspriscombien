@@ -39,14 +39,13 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ error: 'Body JSON invalide' }, { status: 400 })
   }
 
-  // Colonne DB = `duration_seconds` (mais stocke des ms — sémantique gérée côté front).
   const patch: Record<string, number | string> = {}
   if (body.duration_ms !== undefined) {
     const d = Number(body.duration_ms)
     if (!Number.isInteger(d) || d <= 0 || d > 24 * 3600 * 1000) {
       return NextResponse.json({ error: 'duration_ms invalide' }, { status: 400 })
     }
-    patch.duration_seconds = d
+    patch.duration_ms = d
   }
   if (body.distance_m !== undefined) {
     const dist = Number(body.distance_m)
@@ -66,32 +65,15 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
 
   const supabase = createSupabaseServer(token)
-  const { data, error } = (await supabase
+  const { data, error } = await supabase
     .from('runs')
     .update(patch)
     .eq('id', id)
-    .select('id, date, distance_m, duration_seconds, created_at')
-    .single()) as unknown as {
-    data: {
-      id: string
-      date: string
-      distance_m: number
-      duration_seconds: number
-      created_at: string
-    } | null
-    error: { message: string } | null
-  }
+    .select('id, date, distance_m, duration_ms, created_at')
+    .single()
 
   if (error || !data) {
     return NextResponse.json({ error: error?.message ?? 'Échec mise à jour' }, { status: 500 })
   }
-  return NextResponse.json({
-    run: {
-      id: data.id,
-      date: data.date,
-      distance_m: data.distance_m,
-      duration_ms: data.duration_seconds,
-      created_at: data.created_at,
-    },
-  })
+  return NextResponse.json({ run: data })
 }

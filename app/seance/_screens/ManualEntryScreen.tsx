@@ -5,8 +5,15 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { NavFn } from '../_lib/types'
 import { REST_PRESETS, SUGGESTIONS, WORKOUT_TYPES } from '../_lib/constants'
 import { formatMMSS, newId } from '../_lib/helpers'
+import {
+  useExos,
+  filterExos,
+  invalidateExosCache,
+  MAX_EXO_PILLS,
+  type ExoSuggestion,
+} from '../_lib/useExos'
 import { Button, Card, IconButton, TopBar } from '../_components/primitives'
-import { ChevronLeft, Minus, Plus, Timer } from '../_components/icons'
+import { ChevronLeft, Minus, Plus, Search, Timer } from '../_components/icons'
 import { useToast } from '../../_components/Toast'
 
 type Props = {
@@ -208,6 +215,7 @@ export function ManualEntryScreen({ seanceId, nav }: Props) {
         setSaving(false)
         return
       }
+      invalidateExosCache()
       toast.ok(isEdit ? 'Séance modifiée.' : 'Séance enregistrée.')
       if (isEdit) {
         nav('session_detail', { seanceId })
@@ -912,13 +920,28 @@ function AddExoForm({
 }) {
   const [name, setName] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const suggestions = (SUGGESTIONS[workoutType] ?? SUGGESTIONS.push).slice(0, 5)
+  const { exos: dbExos, loading: exosLoading } = useExos()
+
+  const candidates = useMemo(
+    () => filterExos(dbExos, name, workoutType).slice(0, MAX_EXO_PILLS),
+    [dbExos, name, workoutType],
+  )
+  // Suggestions statiques pour COMPLÉTER si DB pas assez fournie sur ce type.
+  const fallbackSugg = useMemo(() => {
+    const dbNames = new Set(candidates.map((e) => e.nom.trim().toLowerCase()))
+    const base = SUGGESTIONS[workoutType] ?? SUGGESTIONS.push
+    const slots = MAX_EXO_PILLS - candidates.length
+    if (slots <= 0) return []
+    return base.filter((s) => !dbNames.has(s.trim().toLowerCase())).slice(0, slots)
+  }, [workoutType, candidates])
+
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
-  const submit = () => {
-    if (name.trim().length === 0) return
-    onAdd(name)
+  const submit = (chosen?: string) => {
+    const final = (chosen ?? name).trim()
+    if (final.length === 0) return
+    onAdd(final)
     setName('')
   }
   return (
@@ -935,38 +958,54 @@ function AddExoForm({
         boxShadow: '0 0 0 1px var(--accent) inset',
       }}
     >
-      <input
-        ref={inputRef}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            submit()
-          }
-          if (e.key === 'Escape') onCancel()
-        }}
-        placeholder="Nom de l'exercice"
-        enterKeyHint="done"
+      <div
         style={{
-          width: '100%',
-          height: 38,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
           padding: '0 10px',
+          height: 38,
           border: '1px solid var(--line)',
           borderRadius: 8,
           background: 'var(--surface-2)',
-          color: 'var(--ink)',
-          fontSize: 14,
-          fontFamily: 'var(--font)',
-          outline: 'none',
         }}
-      />
-      {suggestions.length > 0 && (
+      >
+        <Search size={13} color="var(--subtle)" />
+        <input
+          ref={inputRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              submit()
+            }
+            if (e.key === 'Escape') onCancel()
+          }}
+          placeholder="Cherche ou tape un exercice…"
+          enterKeyHint="done"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: 'none',
+            outline: 'none',
+            background: 'transparent',
+            color: 'var(--ink)',
+            fontSize: 14,
+            fontFamily: 'var(--font)',
+            padding: 0,
+          }}
+        />
+      </div>
+      {!exosLoading && (candidates.length > 0 || fallbackSugg.length > 0) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-          {suggestions.map((s) => (
+          {candidates.map((exo) => (
+            <DbExoPill key={exo.nom} exo={exo} onPick={() => submit(exo.nom)} />
+          ))}
+          {fallbackSugg.map((s) => (
             <button
               key={s}
-              onClick={() => onAdd(s)}
+              onClick={() => submit(s)}
               style={{
                 appearance: 'none',
                 padding: '6px 10px',
@@ -979,6 +1018,7 @@ function AddExoForm({
                 fontFamily: 'var(--font)',
                 cursor: 'pointer',
                 boxShadow: '0 0 0 1px var(--line) inset',
+                opacity: 0.85,
               }}
             >
               {s}
@@ -990,10 +1030,53 @@ function AddExoForm({
         <Button variant="secondary" size="sm" full onClick={onCancel}>
           Annuler
         </Button>
-        <Button size="sm" full onClick={submit} disabled={!name.trim()}>
+        <Button size="sm" full onClick={() => submit()} disabled={!name.trim()}>
           Ajouter
         </Button>
       </div>
     </motion.div>
+  )
+}
+
+function DbExoPill({ exo, onPick }: { exo: ExoSuggestion; onPick: () => void }) {
+  return (
+    <button
+      onClick={onPick}
+      title={
+        exo.lastPoids != null && exo.lastReps != null
+          ? `${exo.count}× · dernière ${exo.lastPoids}kg × ${exo.lastReps}`
+          : `${exo.count}×`
+      }
+      style={{
+        appearance: 'none',
+        padding: '6px 10px',
+        borderRadius: 999,
+        border: 'none',
+        background: 'var(--surface-2)',
+        color: 'var(--ink-2)',
+        fontSize: 11,
+        fontWeight: 500,
+        fontFamily: 'var(--font)',
+        cursor: 'pointer',
+        boxShadow: '0 0 0 1px var(--line) inset',
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        gap: 5,
+      }}
+    >
+      <span>{exo.nom}</span>
+      {exo.lastPoids != null && (
+        <span
+          style={{
+            fontSize: 9,
+            color: 'var(--subtle)',
+            fontFamily: 'var(--mono)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {exo.lastPoids}kg
+        </span>
+      )}
+    </button>
   )
 }

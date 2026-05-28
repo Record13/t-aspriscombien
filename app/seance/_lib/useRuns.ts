@@ -42,7 +42,7 @@ export function useRuns(distance?: number) {
   }, [fetchRuns])
 
   const create = useCallback(
-    async (payload: { distance_m: number; duration_ms: number; date?: string }) => {
+    async (payload: { distance_m: number; duration_ms: number; date?: string }): Promise<Run> => {
       const res = await fetch('/api/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -52,7 +52,9 @@ export function useRuns(distance?: number) {
         const e = await res.json().catch(() => ({}))
         throw new Error(e.error ?? `Erreur ${res.status}`)
       }
+      const data = (await res.json()) as { run: Run }
       await fetchRuns()
+      return data.run
     },
     [fetchRuns],
   )

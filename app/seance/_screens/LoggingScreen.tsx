@@ -1,11 +1,12 @@
 'use client'
 
-import { CSSProperties, Dispatch, SetStateAction, useEffect, useState } from 'react'
+import { CSSProperties, Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react'
 import type { Exo, Serie, SessionState, TimerState, WorkoutStep } from '../_lib/types'
 import { WORKOUT_TYPES } from '../_lib/constants'
 import { formatMMSS, newId } from '../_lib/helpers'
 import { useRestTimer } from '../_lib/useRestTimer'
 import { useWakeLock } from '../_lib/useWakeLock'
+import { useExos } from '../_lib/useExos'
 import { unlockAudio } from '../_lib/restAlert'
 import { Button, Card, IconButton, NumericInput } from '../_components/primitives'
 import {
@@ -32,19 +33,29 @@ export function LoggingScreen({ session, setSession, nav }: Props) {
   const totalExercises = Math.max(4, session.exos?.length || 1)
 
   const lastSerie = curExo.series[curExo.series.length - 1]
-  const [weight, setWeight] = useState<number>(lastSerie?.poids ?? 80)
-  const [reps, setReps] = useState<number | null>(lastSerie?.reps ?? 8)
+  const { exos: dbExos } = useExos()
+
+  // Récupère la dernière charge/reps connue pour cet exo depuis l'historique.
+  const dbMatch = useMemo(() => {
+    const nomKey = curExo.nom.trim().toLowerCase()
+    if (!nomKey) return null
+    return dbExos.find((e) => e.nom.trim().toLowerCase() === nomKey) ?? null
+  }, [dbExos, curExo.nom])
+
+  const [weight, setWeight] = useState<number>(lastSerie?.poids ?? dbMatch?.lastPoids ?? 80)
+  const [reps, setReps] = useState<number | null>(lastSerie?.reps ?? dbMatch?.lastReps ?? 8)
   const [rir, setRir] = useState<number | null>(lastSerie?.rir ?? 2)
   const [degressive, setDegressive] = useState<boolean>(false)
 
   const exKey = curExo.tempId || curExo.nom
   useEffect(() => {
     const ls = curExo.series[curExo.series.length - 1]
-    setWeight(ls?.poids ?? 80)
-    setReps(ls?.reps ?? 8)
+    // Si pas de série précédente dans la session, on retombe sur l'historique DB.
+    setWeight(ls?.poids ?? dbMatch?.lastPoids ?? 80)
+    setReps(ls?.reps ?? dbMatch?.lastReps ?? 8)
     setRir(ls?.rir ?? 2)
     setDegressive(false)
-  }, [exKey, curExo.series.length])
+  }, [exKey, curExo.series.length, dbMatch])
 
   const { adjust: adjustTimer } = useRestTimer(session, setSession)
   const status = session.timer.status
@@ -252,7 +263,13 @@ export function LoggingScreen({ session, setSession, nav }: Props) {
             onChange={(v) => setWeight(v ?? 0)}
             label="Charge"
             suffix="kg"
-            hint={lastSerie ? `préc. ${lastSerie.poids} kg` : null}
+            hint={
+              lastSerie
+                ? `préc. ${lastSerie.poids} kg`
+                : dbMatch?.lastPoids != null
+                  ? `histo. ${dbMatch.lastPoids} kg`
+                  : null
+            }
             step={2.5}
             decimals={1}
             max={500}
@@ -269,7 +286,13 @@ export function LoggingScreen({ session, setSession, nav }: Props) {
               step={1}
               max={50}
               allowNull
-              hint={lastSerie ? `×${lastSerie.reps ?? 'JSP'}` : null}
+              hint={
+                lastSerie
+                  ? `×${lastSerie.reps ?? 'JSP'}`
+                  : dbMatch?.lastReps != null
+                    ? `histo. ×${dbMatch.lastReps}`
+                    : null
+              }
             />
             <NumericInput
               value={rir}

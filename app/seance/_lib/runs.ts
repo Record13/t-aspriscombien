@@ -102,3 +102,286 @@ export function formatRunDate(iso: string): string {
     .format(d)
     .replace('.', '')
 }
+
+/**
+ * Formate un timestamptz ISO → « HH:MM » locale FR. Pour les heures de runs.
+ */
+export function formatRunTime(iso: string): string {
+  const d = new Date(iso)
+  return new Intl.DateTimeFormat('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d)
+}
+
+/**
+ * Durée écoulée entre deux timestamps ISO → « 26 min », « 1 h 12 min ».
+ */
+export function formatSessionDuration(startedAt: string, endedAt: string): string {
+  const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime()
+  if (ms <= 0) return '0 min'
+  const totalMin = Math.round(ms / 60000)
+  if (totalMin < 60) return `${totalMin} min`
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return m === 0 ? `${h} h` : `${h} h ${m} min`
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CALCUL % DU PR
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type PRReference = {
+  // ms du PR de référence (extrapolé ou exact)
+  prMs: number
+  // Distance source du PR. Égale à la distance courue si exact, > sinon.
+  sourceDistance: number
+  // True si la référence vient d'une distance plus longue (linear scaling).
+  scaled: boolean
+}
+
+export type RunWithPR = {
+  run: Run
+  ref: PRReference | null
+  // ratio = ref.prMs / run.duration_ms × 100 (lower time → higher %).
+  // null si pas de référence (1ère fois sur cette distance, pas de longer non plus).
+  pctOfPR: number | null
+  // True si la course bat le PR historique exact (n'est marquée que pour le meilleur
+  // résultat de la séance courante pour éviter de polluer avec des « beats » multiples).
+  isNewPR: boolean
+}
+
+/**
+ * Trouve le PR de référence pour une distance donnée parmi les runs passés.
+ *   1. Match exact sur la distance → utilisé directement.
+ *   2. Sinon, plus proche distance PLUS LONGUE avec un run → scaling linéaire par allure :
+ *      pr_extrapolé = pr_source × (distance_actuelle / distance_source)
+ *   3. Sinon (premier chrono sans distance plus longue disponible) → null.
+ *
+ * `pastRuns` doit exclure les runs de la session courante pour ne pas se comparer à soi-même.
+ */
+export function findPRReference(
+  currentDistance: number,
+  pastRuns: Run[],
+): PRReference | null {
+  // 1. Exact
+  let bestExact: Run | null = null
+  for (const r of pastRuns) {
+    if (r.distance_m !== currentDistance) continue
+    if (!bestExact || r.duration_ms < bestExact.duration_ms) bestExact = r
+  }
+  if (bestExact) {
+    return { prMs: bestExact.duration_ms, sourceDistance: currentDistance, scaled: false }
+  }
+
+  // 2. Plus proche distance plus longue
+  let closestLonger = Infinity
+  for (const r of pastRuns) {
+    if (r.distance_m > currentDistance && r.distance_m < closestLonger) {
+      closestLonger = r.distance_m
+    }
+  }
+  if (!Number.isFinite(closestLonger)) return null
+
+  let bestLonger: Run | null = null
+  for (const r of pastRuns) {
+    if (r.distance_m !== closestLonger) continue
+    if (!bestLonger || r.duration_ms < bestLonger.duration_ms) bestLonger = r
+  }
+  if (!bestLonger) return null
+
+  return {
+    prMs: bestLonger.duration_ms * (currentDistance / closestLonger),
+    sourceDistance: closestLonger,
+    scaled: true,
+  }
+}
+
+/**
+ * Calcule le % du PR pour chaque run de la session, marque le meilleur résultat
+ * de la session comme « nouveau PR » s'il bat le PR historique exact.
+ */
+export function computeSessionRunsWithPR(
+  sessionRuns: Run[],
+  historicalRuns: Run[],
+): RunWithPR[] {
+  // sessionRuns triés chronologiquement (par created_at asc) pour l'affichage.
+  const sorted = [...sessionRuns].sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+  // Pour identifier les « new PR » : on regarde, pour chaque distance présente
+  // dans la session, le meilleur temps de la session vs le PR historique exact.
+  const bestPerDistInSession = new Map<number, Run>()
+  for (const r of sorted) {
+    const cur = bestPerDistInSession.get(r.distance_m)
+    if (!cur || r.duration_ms < cur.duration_ms) bestPerDistInSession.set(r.distance_m, r)
+  }
+
+  return sorted.map((run) => {
+    const ref = findPRReference(run.distance_m, historicalRuns)
+    const pct = ref ? (ref.prMs / run.duration_ms) * 100 : null
+
+    // « New PR » uniquement si :
+    //  - on a un PR historique exact (pas de scaling, sinon comparaison non fiable)
+    //  - ce run est le meilleur de la session sur cette distance
+    //  - il bat strictement le PR historique
+    const isBestOfSession = bestPerDistInSession.get(run.distance_m)?.id === run.id
+    const isNewPR =
+      ref != null &&
+      !ref.scaled &&
+      isBestOfSession &&
+      run.duration_ms < ref.prMs
+
+    return { run, ref, pctOfPR: pct, isNewPR }
+  })
+}
+
+/**
+ * Formate le % du PR pour affichage : « 96,8 % », « 102,3 % », « — ».
+ */
+export function formatPct(pct: number | null): string {
+  if (pct == null) return '—'
+  return `${pct.toFixed(1).replace('.', ',')} %`
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GROUPEMENT EN « SÉANCES » D'ATHLÉTISME
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Une « séance d'athlétisme » dérivée des runs : on regroupe par date locale,
+ * puis on découpe sur les gaps > GROUP_GAP_MS (par défaut 90 min).
+ * Pas de modèle DB dédié — on infère depuis `runs.created_at`.
+ */
+export type DerivedAthleticsSession = {
+  // Identifiant stable basé sur le premier run.
+  id: string
+  date: string
+  startedAt: string // ISO, premier created_at
+  endedAt: string // ISO, dernier created_at
+  runs: Run[]
+}
+
+const GROUP_GAP_MS = 90 * 60 * 1000 // 1h30
+
+export function groupRunsIntoSessions(runs: Run[]): DerivedAthleticsSession[] {
+  if (runs.length === 0) return []
+
+  // Tri chrono ascendant pour grouper, puis on retournera dans l'ordre desc.
+  const sorted = [...runs].sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+  const groups: Run[][] = []
+  let current: Run[] = []
+  let currentDate: string | null = null
+  let lastTs: number | null = null
+
+  for (const r of sorted) {
+    const ts = new Date(r.created_at).getTime()
+    const sameDay = r.date === currentDate
+    const closeEnough = lastTs != null && ts - lastTs <= GROUP_GAP_MS
+    if (current.length === 0 || (sameDay && closeEnough)) {
+      current.push(r)
+    } else {
+      groups.push(current)
+      current = [r]
+    }
+    currentDate = r.date
+    lastTs = ts
+  }
+  if (current.length > 0) groups.push(current)
+
+  const sessions: DerivedAthleticsSession[] = groups.map((g) => ({
+    id: `as_${g[0].id}`,
+    date: g[0].date,
+    startedAt: g[0].created_at,
+    endedAt: g[g.length - 1].created_at,
+    runs: g,
+  }))
+
+  // Retourner desc (plus récent en premier) pour coller au reste de l'app.
+  sessions.sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+  return sessions
+}
+
+/**
+ * Formate une durée en ms vers une forme texte « 12,4s » / « 1:23,4 ».
+ * Variante d'affichage pour le markdown — un seul décimal pour rester lisible.
+ */
+function formatChronoMd(ms: number): string {
+  if (ms < 0) ms = 0
+  const totalCs = Math.round(ms / 100) // dixièmes
+  const ds = totalCs % 10
+  const totalS = Math.floor(totalCs / 10)
+  const s = totalS % 60
+  const m = Math.floor(totalS / 60)
+  if (m === 0) return `${s},${ds}s`
+  return `${m}:${String(s).padStart(2, '0')},${ds}`
+}
+
+/**
+ * Formate une séance d'athlétisme + ses %PR en markdown copiable pour LLM.
+ * On reçoit déjà la liste enrichie (RunWithPR) pour éviter de recalculer ici.
+ */
+export function formatAthleticsSessionAsText(args: {
+  date: string
+  startedAt: string
+  endedAt: string
+  runsWithPR: RunWithPR[]
+}): string {
+  const { date, startedAt, endedAt, runsWithPR } = args
+  const d = new Date(date + 'T00:00:00')
+  const dateLong = new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(d)
+
+  const startTime = formatRunTime(startedAt)
+  const endTime = formatRunTime(endedAt)
+  const duration = formatSessionDuration(startedAt, endedAt)
+
+  const distinctDistances = new Set(runsWithPR.map((r) => r.run.distance_m))
+  const bestPct = runsWithPR.reduce<number | null>(
+    (b, r) => (r.pctOfPR != null && (b == null || r.pctOfPR > b) ? r.pctOfPR : b),
+    null,
+  )
+  const newPRs = runsWithPR.filter((r) => r.isNewPR).length
+
+  const lines: string[] = []
+  lines.push(`# Séance Athlétisme — ${dateLong}`)
+  lines.push('')
+  lines.push(`- Horaires : ${startTime} → ${endTime} (${duration})`)
+  lines.push(
+    `- Total : ${runsWithPR.length} chrono${runsWithPR.length > 1 ? 's' : ''} sur ${distinctDistances.size} distance${distinctDistances.size > 1 ? 's' : ''}`,
+  )
+  if (bestPct != null) {
+    lines.push(`- Meilleur % PR de la séance : ${formatPct(bestPct)}`)
+  }
+  if (newPRs > 0) {
+    lines.push(`- 🔥 ${newPRs} nouveau${newPRs > 1 ? 'x' : ''} record${newPRs > 1 ? 's' : ''} personnel${newPRs > 1 ? 's' : ''}`)
+  }
+  lines.push('')
+
+  // Détail par chrono — chrono N : distance × temps · % PR (scaled note).
+  runsWithPR.forEach((rwp, i) => {
+    const { run, ref, pctOfPR, isNewPR } = rwp
+    const time = new Intl.DateTimeFormat('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(run.created_at))
+    let pctStr = ''
+    if (pctOfPR == null) {
+      pctStr = ' · % PR : — (1ʳᵉ fois sur cette distance)'
+    } else if (ref && ref.scaled) {
+      pctStr = ` · % PR : ${formatPct(pctOfPR)} (extrapolé depuis le PR ${ref.sourceDistance}m, plus proche distance plus longue)`
+    } else {
+      pctStr = ` · % PR : ${formatPct(pctOfPR)}`
+    }
+    const prFlag = isNewPR ? ' 🔥 nouveau PR' : ''
+    lines.push(
+      `${i + 1}. ${run.distance_m}m — ${formatChronoMd(run.duration_ms)} · ${time}${pctStr}${prFlag}`,
+    )
+  })
+
+  return lines.join('\n').trimEnd() + '\n'
+}
